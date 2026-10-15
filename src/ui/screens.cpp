@@ -1,6 +1,7 @@
 #include "screens.h"
 #include "display.h"
 #include "avatars.h"
+#include "logos_data.h"
 #include "../config.h"
 #include "../hardware/leds.h"
 #include "../hardware/power.h"
@@ -164,6 +165,39 @@ void stats() {
 
 // ============================================================ ARRANQUE
 
+// De 0 a 255 entre `start` y `start + duration` ms (para hacer aparecer cosas)
+static uint8_t fadeIn(uint32_t t, uint32_t start, uint32_t duration) {
+  if (t <= start) return 0;
+  if (t >= start + duration) return 255;
+  return (t - start) * 255 / duration;
+}
+
+// Aparece, y en los últimos 300 ms de la escena se va
+static uint8_t sceneFade(uint32_t t, uint32_t start, uint32_t duration) {
+  const uint8_t in = fadeIn(t, start, duration);
+  const uint8_t out = t > BOOT_SCENE_MS - 300 ? 255 - fadeIn(t, BOOT_SCENE_MS - 300, 300) : 255;
+  return min(in, out);
+}
+
+static void fadedText(const String& s, int y, Font f, uint16_t color, uint8_t fade) {
+  if (fade) display::text(s, CX, y, f, display::blend(ink::Bg, color, fade), Align::Center);
+}
+
+void bootAmsterdam(uint32_t t) {
+  display::logo(LOGO_BAMS_MEDALLION, CX, 40, sceneFade(t, 0, 500));
+  display::logo(LOGO_BAMS_WORDMARK, CX, 168, sceneFade(t, 300, 500));
+  fadedText("2026", 248, Font::LabelBig, ink::Orange, sceneFade(t, 700, 400));
+}
+
+void bootMakers(uint32_t t) {
+  fadedText("DESIGNED BY", 40, Font::Label, ink::Dim, sceneFade(t, 0, 300));
+  display::logo(LOGO_BITMAKER, CX, 58, sceneFade(t, 100, 500));
+  fadedText("BUILT BY", 178, Font::Label, ink::Dim, sceneFade(t, 600, 300));
+  display::logo(LOGO_BITRONICS, CX, 196, sceneFade(t, 700, 500));
+  fadedText("bitronics.store", 228, Font::Body, ink::Dim, sceneFade(t, 1000, 400));
+}
+
+
 // Los 18 LEDs de la ₿ en coordenadas del dibujo (las mismas del prototipo)
 static const float B_POINTS[18][2] = {
   {0, 18}, {0, 13.5}, {0, 9}, {0, 4.5}, {0, 0}, {4.5, 0}, {8.2, 1.2}, {9.6, 4.5}, {8.2, 7.8},
@@ -172,7 +206,7 @@ static const uint8_t B_EDGES[][2] = {
   {0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 6}, {6, 7}, {7, 8}, {8, 9}, {9, 2}, {9, 10},
   {10, 11}, {11, 12}, {12, 13}, {13, 0}, {13, 14}, {14, 15}, {15, 0}, {4, 16}, {16, 17}, {17, 5}};
 
-void boot(uint32_t t) {
+void bootBadge(uint32_t t) {
   // La ₿ se dibuja punto a punto, a la vez que los LEDs de verdad
   const int n = min<int>(18, t / 70);
   auto px = [](int i) { return 61 + (int)(B_POINTS[i][0] * 5); };

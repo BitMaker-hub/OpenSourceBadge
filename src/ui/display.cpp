@@ -145,6 +145,27 @@ void icon(Icon which, int x, int y, uint16_t color) {
   }
 }
 
+// ---------------------------------------------------------------- logos
+uint16_t blend(uint16_t a, uint16_t b, uint8_t t) {
+  const int r = ((a >> 11) & 31) + ((((b >> 11) & 31) - ((a >> 11) & 31)) * t) / 255;
+  const int g = ((a >> 5) & 63) + ((((b >> 5) & 63) - ((a >> 5) & 63)) * t) / 255;
+  const int bl = (a & 31) + (((b & 31) - (a & 31)) * t) / 255;
+  return r << 11 | g << 5 | bl;
+}
+
+void logo(const Logo& l, int centerX, int y, uint8_t fade) {
+  if (fade == 0) return;
+  const int x = centerX - l.width / 2;
+  // Píxel a píxel (y no pushImage) para no liarnos con el orden de bytes del lienzo.
+  // Mientras aparece, cada píxel va a medio camino entre el fondo y su color.
+  for (int j = 0; j < l.height; j++) {
+    for (int i = 0; i < l.width; i++) {
+      const uint16_t c = l.pixels[j * l.width + i];
+      lienzo.drawPixel(x + i, y + j, fade == 255 ? c : blend(ink::Bg, c, fade));
+    }
+  }
+}
+
 // ---------------------------------------------------------------- QR
 int qr(const String& data, int centerX, int y, int maxSize) {
   static uint8_t buffer[700];   // cabe hasta la versión 13

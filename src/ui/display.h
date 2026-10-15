@@ -48,6 +48,9 @@ enum class Font : uint8_t {
 
 enum class Align : uint8_t { Left, Center, Right };
 
+// Imagen ya convertida a RGB565 (las genera tools/exportar_logos.py en ui/logos_data.h)
+struct Logo { uint16_t width; uint16_t height; const uint16_t* pixels; };
+
 enum class Icon : uint8_t { Peers, Bolt, Bars, Chain };
 
 namespace display {
@@ -74,6 +77,12 @@ int  chip(const String& label, int centerX, int y, uint16_t color);      // devu
 void pageDots(int current, int count);
 void icon(Icon which, int x, int y, uint16_t color);
 void bitmap(const char* const* rows, int nRows, int x, int y, int scale, uint16_t color);   // '#' = píxel
+
+// Un logo de ui/logos_data.h, centrado en centerX. fade = 255 se ve entero, 0 no se ve.
+void logo(const Logo& l, int centerX, int y, uint8_t fade = 255);
+
+// Mezcla dos colores de pantalla: amount = 0 -> a, 255 -> b
+uint16_t blend(uint16_t a, uint16_t b, uint8_t amount);
 
 // Dibuja un QR centrado en centerX, lo más grande posible sin pasar de maxSize.
 // Devuelve el lado en píxeles (0 si el texto no cabe en un QR).

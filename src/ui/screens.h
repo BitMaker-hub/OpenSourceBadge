@@ -21,7 +21,11 @@ void qrCodes(const QrItem* items, int count, int current);   // página 2
 void peers();                                                // página 3
 void stats();                                                // página 4
 
-void boot(uint32_t t);
+// Arranque en tres escenas: Bitcoin Amsterdam, quién lo ha hecho, y la ₿ del badge
+constexpr uint32_t BOOT_SCENE_MS = 2400;     // lo que dura cada una de las dos primeras
+void bootAmsterdam(uint32_t t);
+void bootMakers(uint32_t t);
+void bootBadge(uint32_t t);
 void qrFullscreen(const QrItem& item);
 void setup(uint32_t t);
 void seedLab(int selected);

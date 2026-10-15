@@ -72,12 +72,39 @@ static void idleLeds(uint32_t t) {
 }
 
 // ============================================================ BOOT
+//
+// Tres escenas seguidas, cada una con sus LEDs. Cualquier botón se la salta.
+//   1. Bitcoin Amsterdam: la ₿ se llena de naranja de arriba abajo
+//   2. Bitmaker y Bitronics: un rayo dorado da vueltas a la B y TX/RX se pasan la chispa
+//   3. La ₿ del badge se dibuja punto a punto, en pantalla y en los LEDs a la vez
+
+static const uint32_t MAKERS_AT = screens::BOOT_SCENE_MS;
+static const uint32_t BADGE_AT  = screens::BOOT_SCENE_MS * 2;
+static const uint32_t BOOT_END  = BADGE_AT + 3200;
+static const Color    BITRONICS_GOLD = 0xECD400;
 
 static void boot(ButtonEvent ev, uint32_t t) {
-  if (ev != ButtonEvent::None || t > 3200) return go(State::Profile);
+  if (ev != ButtonEvent::None || t > BOOT_END) return go(State::Profile);
 
-  effects::drawIn(groups::B, colors::Orange, colors::Amber, 70, t);
-  screens::boot(t);
+  if (t < MAKERS_AT) {
+    // Escena 1. En los últimos 300 ms la B se apaga con la pantalla
+    const uint32_t fadeOut = t > MAKERS_AT - 300 ? (MAKERS_AT - t) * 255 / 300 : 255;
+    if (t < 1100) effects::drawIn(groups::BTopToBottom, colors::Orange, colors::Amber, 60, t);
+    else          effects::solid(groups::B, leds::dim(colors::Orange, fadeOut));
+    screens::bootAmsterdam(t);
+  } else if (t < BADGE_AT) {
+    // Escena 2
+    const uint32_t s = t - MAKERS_AT;
+    effects::trail(groups::BOutline, BITRONICS_GOLD, 5, 50, s, colors::Cream);
+    effects::blink(groups::Tx, BITRONICS_GOLD, 300, s);
+    effects::blink(groups::Rx, BITRONICS_GOLD, 300, s + 150);
+    screens::bootMakers(s);
+  } else {
+    // Escena 3
+    const uint32_t s = t - BADGE_AT;
+    effects::drawIn(groups::B, colors::Orange, colors::Amber, 70, s);
+    screens::bootBadge(s);
+  }
 }
 
 // ============================================================ PÁGINAS DE INICIO
