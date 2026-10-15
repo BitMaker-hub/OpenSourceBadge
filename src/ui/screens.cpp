@@ -186,9 +186,9 @@ static void fadedText(const String& s, int y, Font f, uint16_t color, uint8_t fa
 }
 
 void bootAmsterdam(uint32_t t) {
-  display::logo(LOGO_BAMS_MEDALLION, CX, 40, sceneFade(t, 0, 500));
-  display::logo(LOGO_BAMS_WORDMARK, CX, 168, sceneFade(t, 300, 500));
-  fadedText("2026", 248, Font::LabelBig, ink::Orange, sceneFade(t, 700, 400));
+  display::logo(LOGO_BAMS_MEDALLION, CX, 65, sceneFade(t, 0, 500));
+  display::logo(LOGO_BAMS_WORDMARK, CX, 169, sceneFade(t, 300, 500));
+  fadedText("2026", 239, Font::LabelBig, ink::Orange, sceneFade(t, 700, 400));
 }
 
 void bootMakers(uint32_t t) {
