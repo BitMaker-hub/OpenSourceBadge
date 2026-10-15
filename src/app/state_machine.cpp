@@ -7,6 +7,8 @@
 #include "../effects/led_effects.h"
 #include "../ui/display.h"
 #include "../ui/screens.h"
+#include "../net/setup_portal.h"
+#include "../net/peer_link.h"
 
 namespace app {
 
@@ -17,9 +19,11 @@ static uint32_t enteredAt = 0;        // millis() al entrar en el estado
 static State    returnTo = State::Profile;   // a qué página volver al salir de un estado "de paso"
 
 static void onEnter(State s);         // lo que hace cada estado al empezar (más abajo)
+static void onExit(State s);          // y lo que recoge al terminar
 
 static void go(State next) {
   Serial.printf("[estado] %s -> %s\n", stateName(state), stateName(next));
+  onExit(state);
   state = next;
   enteredAt = millis();
   onEnter(next);
@@ -154,10 +158,13 @@ static void qrFullscreen(ButtonEvent ev, uint32_t t) {
 // ============================================================ HANDSHAKE
 //
 // Tiene sus propios pasos, como una máquina de estados pequeña dentro de este
-// estado. Ahora los pasos avanzan por tiempo; cuando esté ESP-NOW avanzarán
-// cuando llegue la respuesta del otro badge.
+// estado. Los pasos los mueve la radio (net/peer_link): cuándo oímos a otro
+// badge y cuándo nos oye él. Las animaciones duran un mínimo para que se vean.
 
-enum class HandshakeStep : uint8_t { Searching, Found, Mining, Mined };
+enum class HandshakeStep : uint8_t { Searching, Found, Mining, Mined, NotFound };
+
+static const uint32_t SEARCH_TIMEOUT_MS = 15000;   // nadie cerca
+static const uint32_t FOUND_TIMEOUT_MS  = 6000;    // le oímos pero él a nosotros no
 
 static HandshakeStep step;
 static uint32_t      stepStartedAt;
@@ -172,25 +179,40 @@ static void nextStep(HandshakeStep s) {
 }
 
 static void startHandshake() {
-  other = badge::randomDemoPeer();   // sin radio todavía: un peer inventado
   hashCount = 0;
   nextStep(HandshakeStep::Searching);
+  peerlink::start();
 }
 
 static void handshake(ButtonEvent ev, uint32_t t) {
   if (ev == ButtonEvent::ModeShort) return go(returnTo);   // cancelar
 
+  peerlink::loop();
+  const peerlink::Status radio = peerlink::status();
+
   // 1. ¿Toca pasar al paso siguiente?
   uint32_t s = millis() - stepStartedAt;                    // tiempo dentro del paso
   switch (step) {
-    case HandshakeStep::Searching: if (s > 1700) nextStep(HandshakeStep::Found); break;
-    case HandshakeStep::Found:     if (s > 1200) { nextStep(HandshakeStep::Mining); nextHashAt = 0; } break;
-    case HandshakeStep::Mining:    if (s > 2100) nextStep(HandshakeStep::Mined); break;
-    case HandshakeStep::Mined:
-      if (s > 2600 || ev == ButtonEvent::PeerShort) {
-        badge::addPeer(other);                             // ya es un peer más
-        return go(returnTo);
+    case HandshakeStep::Searching:
+      if (radio != peerlink::Status::Searching) nextStep(HandshakeStep::Found);
+      else if (s > SEARCH_TIMEOUT_MS)           nextStep(HandshakeStep::NotFound);
+      break;
+    case HandshakeStep::Found:
+      if (radio == peerlink::Status::Done && s > 1200) { nextStep(HandshakeStep::Mining); nextHashAt = 0; }
+      else if (s > FOUND_TIMEOUT_MS)                    nextStep(HandshakeStep::NotFound);
+      break;
+    case HandshakeStep::Mining:
+      if (s > 2100) {
+        other = peerlink::other();
+        badge::addPeer(other);                             // guardado: ya es un peer más
+        nextStep(HandshakeStep::Mined);
       }
+      break;
+    case HandshakeStep::Mined:
+      if (s > 2600 || ev == ButtonEvent::PeerShort) return go(returnTo);
+      break;
+    case HandshakeStep::NotFound:
+      if (s > 2500 || ev == ButtonEvent::PeerShort) return go(returnTo);
       break;
   }
   s = millis() - stepStartedAt;
@@ -206,7 +228,7 @@ static void handshake(ButtonEvent ev, uint32_t t) {
     case HandshakeStep::Found:
       effects::blink(groups::Tx, colors::Blue, 300, s);
       effects::blink(groups::Rx, colors::Blue, 300, s + 150);   // desfasados: van y vienen
-      screens::handshakeFound(other, s);
+      screens::handshakeFound(peerlink::other(), s);
       break;
 
     case HandshakeStep::Mining: {
@@ -228,6 +250,11 @@ static void handshake(ButtonEvent ev, uint32_t t) {
     case HandshakeStep::Mined:
       effects::alternate(groups::B, colors::Green, colors::DarkGreen, 440, s);
       screens::handshakeMined(other);
+      break;
+
+    case HandshakeStep::NotFound:
+      effects::solid(groups::TxRx, colors::Red);
+      screens::handshakeNotFound();
       break;
   }
 }
@@ -265,14 +292,30 @@ static void seedLab(ButtonEvent ev, uint32_t t) {
 }
 
 // ============================================================ SETUP
+//
+// El badge levanta su WiFi y sirve la página badge.local. Cuando el móvil
+// guarda, se enseña "Saved!" un momento y se vuelve al perfil ya cambiado.
+
+static uint32_t setupSavedAt = 0;   // 0 = aún no han guardado
 
 static void setupMode(ButtonEvent ev, uint32_t t) {
   if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::ModeLong || t > 300000) return go(returnTo);
-  // Por hacer: levantar la WiFi propia y la página badge.local
+
+  portal::loop();
+  if (portal::savedSinceLastAsk()) setupSavedAt = millis();
+
+  if (setupSavedAt) {
+    const uint32_t s = millis() - setupSavedAt;
+    if (s > 2500) return go(State::Profile);
+    effects::alternate(groups::B, colors::Green, colors::DarkGreen, 440, s);
+    screens::setupSaved();
+    return;
+  }
 
   effects::blink(groups::BTicks, colors::Orange, 800, t);
   effects::solid(groups::Tx, colors::Blue);
-  screens::setup(t);
+  if (portal::connectedPhones() > 0) effects::solid(groups::Rx, colors::Blue);   // hay un móvil conectado
+  screens::setup(t, portal::connectedPhones());
 }
 
 // ============================================================ PRUEBA DE PLACA
@@ -347,7 +390,7 @@ static void hardwareTest(ButtonEvent ev, uint32_t t) {
 // ============================================================ bucle
 
 void begin() {
-  badge::loadDemo();
+  badge::begin();
   // SEED pulsado al encender: directo a la prueba de placa
   if (digitalRead(PIN_BTN_SEED) == LOW) go(State::HardwareTest);
   else go(State::Boot);
@@ -356,9 +399,18 @@ void begin() {
 static void onEnter(State s) {
   switch (s) {
     case State::Handshake:    startHandshake();    break;
+    case State::Setup:        setupSavedAt = 0; portal::start(); break;
     case State::SeedLab:      seedSelected = 0;    break;
     case State::HardwareTest: startHardwareTest(); break;
     default:                                       break;   // el resto no prepara nada
+  }
+}
+
+static void onExit(State s) {
+  switch (s) {
+    case State::Handshake: peerlink::stop(); break;   // radio apagada: ahorra batería
+    case State::Setup:     portal::stop();   break;
+    default:                                 break;
   }
 }
 

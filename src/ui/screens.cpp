@@ -32,7 +32,9 @@ static void centeredLines(const String& s, int y, int maxWidth, int maxLines, in
 
 void profile() {
   const Profile& me = badge::me();
-  header("B #" + String(badge::blockHeight()), ink::Orange);
+  char title[16];
+  snprintf(title, sizeof title, "BADGE #%03u", badge::number());
+  header(title, ink::Orange);
 
   avatars::card(me.role, 37, 26, 3);
   display::text(display::fit(me.name, 158, Font::Title), CX, 132, Font::Title, ink::Fg, Align::Center);
@@ -109,7 +111,7 @@ void peers() {
     display::text(display::fit(p.name, 74), 52, y + 3);
     display::chip(r.name, 52 + display::textWidth(r.name, Font::Label) / 2 + 4, y + 25, r.color);
     display::text("#" + String(p.block), 158, y + 3, Font::Body, ink::Orange, Align::Right);
-    display::text(p.time, 158, y + 22, Font::Body, ink::Dim, Align::Right);
+    display::text(badge::clock(p.when), 158, y + 22, Font::Body, ink::Dim, Align::Right);
   }
   if (shown == 0) display::text("Nobody yet. Press PEER!", CX, 140, Font::Body, ink::Dim, Align::Center);
   display::pageDots(2, HOME_PAGES);
@@ -242,24 +244,38 @@ void qrFullscreen(const QrItem& q) {
   display::text("PEER - Back", CX, 298, Font::Body, ink::Dim, Align::Center);
 }
 
-void setup(uint32_t t) {
+void setup(uint32_t t, int phonesConnected) {
   header("SETUP", ink::Orange);
-  const Profile& me = badge::me();
-  char ssid[16];
-  snprintf(ssid, sizeof ssid, "BADGE-%03u", me.number);
+  const String ssid = badge::wifiName();
 
   display::text("Hello, pleb!", CX, 22, Font::Title, ink::Orange, Align::Center);
   display::text("1 - Scan to join my WiFi", CX, 50, Font::Body, ink::Soft, Align::Center);
-  const int side = display::qr(String("WIFI:S:") + ssid + ";T:WPA;P:21000000;;", CX, 70, 120);
-  display::text(String(ssid) + " - pass 21000000", CX, 72 + side, Font::Body, ink::Dim, Align::Center);
+  const int side = display::qr("WIFI:S:" + ssid + ";T:WPA;P:21000000;;", CX, 70, 120);
+  display::text(ssid + " - pass 21000000", CX, 72 + side, Font::Body, ink::Dim, Align::Center);
   display::text("2 - Open", CX, 210, Font::Body, ink::Soft, Align::Center);
   display::text("badge.local", CX, 226, Font::Title, ink::Gold, Align::Center);
-  centeredLines("Pick your character, add Nostr, X and get your zap address.", 256, 150, 3, 14, ink::Dim);
+
+  if (phonesConnected > 0) {
+    display::text("Phone connected!", CX, 260, Font::Body, ink::Ok, Align::Center);
+    display::text("Opening the page...", CX, 276, Font::Body, ink::Dim, Align::Center);
+  } else {
+    centeredLines("Pick your character, add Nostr, X and get your zap address.", 256, 150, 3, 14, ink::Dim);
+  }
 
   const int left = max<int>(0, 299 - t / 1000);
   char closes[32];
   snprintf(closes, sizeof closes, "Closes in %d:%02d - MODE exits", left / 60, left % 60);
   display::text(closes, CX, 302, Font::Body, ink::Dim, Align::Center);
+}
+
+void setupSaved() {
+  const Profile& me = badge::me();
+  header("SETUP", ink::Ok);
+  display::text("Saved!", CX, 30, Font::Title, ink::Ok, Align::Center);
+  avatars::card(me.role, 37, 74, 3);
+  display::text(display::fit(me.name, 158, Font::Title), CX, 184, Font::Title, ink::Fg, Align::Center);
+  display::chip(roleInfo(me.role).name, CX, 214, roleInfo(me.role).color);
+  display::text("Welcome to the network", CX, 250, Font::Body, ink::Dim, Align::Center);
 }
 
 void seedLab(int selected) {
@@ -339,6 +355,13 @@ void handshakeMining(const String* hashes, int count, uint8_t progress, uint32_t
   display::rect(14, 252, 142, 5, ink::Line);
   display::rect(14, 252, 142 * progress / 255, 5, ink::Orange);
   display::text("Nonce " + String(nonce), CX, 264, Font::Body, ink::Dim, Align::Center);
+}
+
+void handshakeNotFound() {
+  header("PEER", ink::Nostr);
+  avatars::card(badge::me().role, 53, 80, 2);
+  display::text("No badge nearby", CX, 180, Font::Title, ink::Fg, Align::Center);
+  centeredLines("Both press PEER at the same time and hold the badges close.", 216, 150, 3, 16, ink::Dim);
 }
 
 void handshakeMined(const Peer& other) {

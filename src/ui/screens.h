@@ -27,7 +27,8 @@ void bootAmsterdam(uint32_t t);
 void bootMakers(uint32_t t);
 void bootBadge(uint32_t t);
 void qrFullscreen(const QrItem& item);
-void setup(uint32_t t);
+void setup(uint32_t t, int phonesConnected);
+void setupSaved();
 void seedLab(int selected);
 void zap(const Zap& z, uint32_t t);
 
@@ -36,6 +37,7 @@ void handshakeSearching(uint32_t t);
 void handshakeFound(const Peer& other, uint32_t t);
 void handshakeMining(const String* hashes, int count, uint8_t progress, uint32_t nonce);
 void handshakeMined(const Peer& other);
+void handshakeNotFound();
 
 // Prueba de placa
 struct HardwareTestInfo {

@@ -54,4 +54,27 @@ void card(Role role, int x, int y, int scale) {
   draw(role, x, y, scale);
 }
 
+String svg(Role role) {
+  const Sprite& s = SPRITES[(int)role];
+  String out = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'>";
+  // Una tira por cada tramo seguido del mismo color: así salen unos cientos de rectángulos, no mil
+  for (int j = 0; j < 32; j++) {
+    int i = 0;
+    while (i < 32) {
+      const char letter = s.rows[j][i];
+      int run = 1;
+      while (i + run < 32 && s.rows[j][i + run] == letter) run++;
+      if (letter != ' ') {
+        const uint16_t c = colorOf(s.palette, letter);
+        char rect[80];
+        snprintf(rect, sizeof rect, "<rect x='%d' y='%d' width='%d' height='1' fill='#%02X%02X%02X'/>",
+                 i, j, run, (c >> 8) & 0xF8, (c >> 3) & 0xFC, (c << 3) & 0xF8);
+        out += rect;
+      }
+      i += run;
+    }
+  }
+  return out + "</svg>";
+}
+
 }  // namespace avatars

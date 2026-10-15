@@ -15,4 +15,7 @@ void draw(Role role, int x, int y, int scale, bool faded = false);
 // El personaje dentro de su tarjeta: marco del color del rol y fondo con trama
 void card(Role role, int x, int y, int scale);
 
+// El personaje como imagen SVG, para la página de configuración del móvil
+String svg(Role role);
+
 }  // namespace avatars

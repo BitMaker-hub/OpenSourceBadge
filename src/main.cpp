@@ -22,6 +22,7 @@
 #include "hardware/qwiic.h"
 #include "ui/display.h"
 #include "app/state_machine.h"
+#include "app/badge.h"
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 
@@ -29,9 +30,19 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   p / m / s  = PEER / MODE / SEED corto
 //   P / M / S  = los mismos, pulsación larga
 //   z          = simular que llega un zap
+//   d          = cargar los datos de demo del prototipo (no se guardan)
+//   n042       = grabar el número de serie del badge (fábrica)
+//   X          = borrar perfil y peers (dejarlo como nuevo)
 static ButtonEvent readSerialCommand() {
   if (!Serial.available()) return ButtonEvent::None;
   switch (Serial.read()) {
+    case 'd': badge::loadDemo(); return ButtonEvent::None;
+    case 'n': {
+      const int n = Serial.parseInt();
+      if (n > 0 && n < 1000) { badge::setNumber(n); Serial.printf("Badge #%03d\n", n); }
+      return ButtonEvent::None;
+    }
+    case 'X': badge::factoryReset(); Serial.println("Badge borrado"); return ButtonEvent::None;
     case 'p': return ButtonEvent::PeerShort;
     case 'P': return ButtonEvent::PeerLong;
     case 'm': return ButtonEvent::ModeShort;
@@ -51,7 +62,7 @@ void setup() {
   qwiic::begin();
   display::begin();
   app::begin();
-  Serial.println("Open Source Badge listo. Teclas: p m s (P M S largas), z = zap");
+  Serial.println("Open Source Badge listo. Teclas: p m s (P M S largas), z zap, d demo, n042 numero, X borrar");
 }
 
 void loop() {
