@@ -56,8 +56,9 @@ int16_t  loadTimezone()          { return prefs.getShort("tz", 0); }
 void     saveTimezone(int16_t m) { prefs.putShort("tz", m); }
 
 void loadNetwork(String& ssid, String& password) {
-  ssid = prefs.getString("net_ssid");
-  password = prefs.getString("net_pass");
+  // isKey antes de leer: si no existe, Preferences llena el puerto serie de errores
+  ssid = prefs.isKey("net_ssid") ? prefs.getString("net_ssid") : "";
+  password = prefs.isKey("net_pass") ? prefs.getString("net_pass") : "";
 }
 
 void saveNetwork(const String& ssid, const String& password) {

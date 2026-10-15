@@ -23,6 +23,7 @@
 #include "ui/display.h"
 #include "app/state_machine.h"
 #include "app/badge.h"
+#include "app/storage.h"
 #include "net/setup_portal.h"
 #include "net/nostr_zaps.h"
 
@@ -34,6 +35,8 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   z          = simular que llega un zap
 //   d          = cargar los datos de demo del prototipo (no se guardan)
 //   n042       = grabar el número de serie del badge (fábrica)
+//   Nnpub1...  = cambiar el npub del perfil (y Nostr empieza a escuchar ese)
+//   i          = estado: perfil, WiFi de internet y Nostr
 //   Z          = poner a cero el contador de sats recibidos
 //   X          = borrar perfil y peers (dejarlo como nuevo)
 //   c          = captura de la pantalla (la lee tools/captura.py)
@@ -57,6 +60,25 @@ static ButtonEvent readSerialCommand() {
       QrItem items[badge::MAX_QRS];
       const int n = badge::qrItems(items);
       for (int i = 0; i < n; i++) display::qrToSerial(items[i].data);
+      return ButtonEvent::None;
+    }
+    case 'N': {
+      String npub = Serial.readStringUntil('\n');
+      npub.trim();
+      badge::me().npub = npub;
+      badge::saveMe();
+      nostrzaps::reload();
+      Serial.printf("npub: %s\n", npub.c_str());
+      return ButtonEvent::None;
+    }
+    case 'i': {
+      String ssid, password;
+      storage::loadNetwork(ssid, password);
+      static const char* const NOSTR[] = {"sin configurar", "en pausa", "conectando WiFi", "conectando relay", "escuchando"};
+      Serial.printf("Badge #%03u %s\n", badge::number(), badge::me().name.c_str());
+      Serial.printf("  npub:  %s\n", badge::me().npub.c_str());
+      Serial.printf("  WiFi:  %s%s\n", ssid.length() ? ssid.c_str() : "(ninguna)", password.length() ? " (con contraseña)" : "");
+      Serial.printf("  Nostr: %s\n", NOSTR[(int)nostrzaps::status()]);
       return ButtonEvent::None;
     }
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;
