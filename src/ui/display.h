@@ -88,4 +88,7 @@ uint16_t blend(uint16_t a, uint16_t b, uint8_t amount);
 // Devuelve el lado en píxeles (0 si el texto no cabe en un QR).
 int  qr(const String& data, int centerX, int y, int maxSize);
 
+// Escribe por el puerto serie el mismo QR, con '#' y '.', para comprobarlo en el ordenador
+void qrToSerial(const String& data);
+
 }  // namespace display

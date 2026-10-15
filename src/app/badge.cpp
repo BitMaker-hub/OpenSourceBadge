@@ -149,7 +149,7 @@ int qrItems(QrItem* out) {
     out[n++] = {QrKind::X, "X", "X", "https://x.com/" + user, "FOLLOW ON X", "@" + user, ink::X};
   }
   if (n == 0)
-    out[n++] = {QrKind::Setup, "SETUP", "SETUP", "WIFI:S:" + wifiName() + ";T:WPA;P:21000000;;",
+    out[n++] = {QrKind::Setup, "SETUP", "SETUP", "WIFI:S:" + wifiName() + ";T:nopass;;",
                 "SET ME UP", "Hold MODE", ink::Orange};
   return n;
 }

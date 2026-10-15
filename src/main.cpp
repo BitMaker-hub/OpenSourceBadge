@@ -23,6 +23,7 @@
 #include "ui/display.h"
 #include "app/state_machine.h"
 #include "app/badge.h"
+#include "net/setup_portal.h"
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 
@@ -33,6 +34,7 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   d          = cargar los datos de demo del prototipo (no se guardan)
 //   n042       = grabar el número de serie del badge (fábrica)
 //   X          = borrar perfil y peers (dejarlo como nuevo)
+//   q          = escribir los QR del badge con '#' y '.' para comprobarlos
 static ButtonEvent readSerialCommand() {
   if (!Serial.available()) return ButtonEvent::None;
   switch (Serial.read()) {
@@ -40,6 +42,13 @@ static ButtonEvent readSerialCommand() {
     case 'n': {
       const int n = Serial.parseInt();
       if (n > 0 && n < 1000) { badge::setNumber(n); Serial.printf("Badge #%03d\n", n); }
+      return ButtonEvent::None;
+    }
+    case 'q': {
+      display::qrToSerial(portal::wifiQr());
+      QrItem items[badge::MAX_QRS];
+      const int n = badge::qrItems(items);
+      for (int i = 0; i < n; i++) display::qrToSerial(items[i].data);
       return ButtonEvent::None;
     }
     case 'X': badge::factoryReset(); Serial.println("Badge borrado"); return ButtonEvent::None;

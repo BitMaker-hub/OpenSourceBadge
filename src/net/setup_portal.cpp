@@ -105,7 +105,7 @@ static void redirectToPortal() {
 void start() {
   if (running) return;
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(badge::wifiName().c_str(), PASSWORD);
+  WiFi.softAP(badge::wifiName().c_str());   // abierta: sin contraseña
   delay(100);
 
   dns.start(53, "*", WiFi.softAPIP());   // todas las direcciones apuntan a nosotros
@@ -145,6 +145,8 @@ bool savedSinceLastAsk() {
   saved = false;
   return s;
 }
+
+String wifiQr() { return "WIFI:S:" + badge::wifiName() + ";T:nopass;;"; }
 
 int connectedPhones() { return running ? WiFi.softAPgetStationNum() : 0; }
 

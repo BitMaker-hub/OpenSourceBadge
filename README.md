@@ -16,7 +16,7 @@ pio device monitor
 
 | Botón | Corto | Largo |
 |---|---|---|
-| **MODE** | Página siguiente: perfil → QR → peers → stats | Setup (WiFi y badge.local) |
+| **MODE** | Página siguiente: perfil → QR → peers → stats | Setup: WiFi abierta BADGE-xxx y badge.local |
 | **PEER** | Handshake con otro badge | QR a pantalla completa |
 | **SEED** | Seed Lab | Prueba de placa |
 

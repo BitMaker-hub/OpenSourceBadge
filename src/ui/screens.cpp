@@ -5,6 +5,7 @@
 #include "../config.h"
 #include "../hardware/leds.h"
 #include "../hardware/power.h"
+#include "../net/setup_portal.h"
 
 namespace screens {
 
@@ -246,26 +247,22 @@ void qrFullscreen(const QrItem& q) {
 
 void setup(uint32_t t, int phonesConnected) {
   header("SETUP", ink::Orange);
-  const String ssid = badge::wifiName();
 
   display::text("Hello, pleb!", CX, 22, Font::Title, ink::Orange, Align::Center);
-  display::text("1 - Scan to join my WiFi", CX, 50, Font::Body, ink::Soft, Align::Center);
-  const int side = display::qr("WIFI:S:" + ssid + ";T:WPA;P:21000000;;", CX, 70, 120);
-  display::text(ssid + " - pass 21000000", CX, 72 + side, Font::Body, ink::Dim, Align::Center);
-  display::text("2 - Open", CX, 210, Font::Body, ink::Soft, Align::Center);
-  display::text("badge.local", CX, 226, Font::Title, ink::Gold, Align::Center);
+  display::text("1. Scan to join my WiFi", CX, 52, Font::Body, ink::Soft, Align::Center);
+  const int side = display::qr(portal::wifiQr(), CX, 72, 124);
+  display::text(badge::wifiName(), CX, 76 + side, Font::Body, ink::Gold, Align::Center);
+  display::text("Open WiFi, no password", CX, 92 + side, Font::Body, ink::Dim, Align::Center);
 
-  if (phonesConnected > 0) {
-    display::text("Phone connected!", CX, 260, Font::Body, ink::Ok, Align::Center);
-    display::text("Opening the page...", CX, 276, Font::Body, ink::Dim, Align::Center);
-  } else {
-    centeredLines("Pick your character, add Nostr, X and get your zap address.", 256, 150, 3, 14, ink::Dim);
-  }
+  display::text("2. Then open", CX, 222, Font::Body, ink::Soft, Align::Center);
+  display::text("badge.local", CX, 238, Font::Title, ink::Gold, Align::Center);
+
+  if (phonesConnected > 0) display::text("Phone connected!", CX, 270, Font::Body, ink::Ok, Align::Center);
 
   const int left = max<int>(0, 299 - t / 1000);
-  char closes[32];
-  snprintf(closes, sizeof closes, "Closes in %d:%02d - MODE exits", left / 60, left % 60);
-  display::text(closes, CX, 302, Font::Body, ink::Dim, Align::Center);
+  char closes[24];
+  snprintf(closes, sizeof closes, "MODE exits - %d:%02d", left / 60, left % 60);
+  display::text(closes, CX, 300, Font::Body, ink::Dim, Align::Center);
 }
 
 void setupSaved() {

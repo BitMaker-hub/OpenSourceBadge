@@ -1052,3 +1052,19 @@ void qrcode_getHex(QRCode *qrcoded, char *result) {
     
 }
 */
+
+// Añadido para el badge: la librería original no comprueba si el texto cabe en
+// la versión pedida y, si no cabe, devuelve 0 igualmente y dibuja un QR roto.
+// Esto cuenta los bits que haría falta en modo byte (el que más ocupa) y los
+// compara con lo que cabe en esa versión y nivel de corrección.
+bool qrcode_fitsBytes(uint8_t version, uint8_t ecc, uint16_t length)
+{
+#if LOCK_VERSION == 0
+    uint8_t eccFormatBits = (ECC_FORMAT_BITS >> (2 * ecc)) & 0x03;
+    uint32_t capacityBits = (NUM_RAW_DATA_MODULES[version - 1] / 8 - NUM_ERROR_CORRECTION_CODEWORDS[eccFormatBits][version - 1]) * 8;
+    uint32_t neededBits = 4 + (version < 10 ? 8 : 16) + 8 * (uint32_t)length;
+    return neededBits <= capacityBits;
+#else
+    return true;
+#endif
+}

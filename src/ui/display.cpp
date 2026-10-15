@@ -173,10 +173,11 @@ int qr(const String& data, int centerX, int y, int maxSize) {
 
   // La versión más pequeña en la que cabe el texto: módulos más grandes, más fácil de leer
   int version = 1;
-  while (version <= 13 && qrcode_initText(&code, buffer, version, ECC_MEDIUM, data.c_str()) < 0) version++;
+  while (version <= 13 && !qrcode_fitsBytes(version, ECC_MEDIUM, data.length())) version++;
   if (version > 13) return 0;
+  qrcode_initText(&code, buffer, version, ECC_MEDIUM, data.c_str());
 
-  const int modules = code.size + 4;                 // 2 módulos de margen blanco a cada lado
+  const int modules = code.size + 8;                 // 4 módulos de margen blanco a cada lado, como pide el estándar
   const int scale = max(1, maxSize / modules);
   const int side = modules * scale;
   const int x = centerX - side / 2;
@@ -184,8 +185,23 @@ int qr(const String& data, int centerX, int y, int maxSize) {
   roundRect(x, y, side, side, ink::White);
   for (int r = 0; r < code.size; r++)
     for (int c = 0; c < code.size; c++)
-      if (qrcode_getModule(&code, c, r)) rect(x + (c + 2) * scale, y + (r + 2) * scale, scale, scale, ink::Bg);
+      if (qrcode_getModule(&code, c, r)) rect(x + (c + 4) * scale, y + (r + 4) * scale, scale, scale, ink::Bg);
   return side;
+}
+
+void qrToSerial(const String& data) {
+  static uint8_t buffer[700];
+  QRCode code;
+  int version = 1;
+  while (version <= 13 && !qrcode_fitsBytes(version, ECC_MEDIUM, data.length())) version++;
+  if (version > 13) { Serial.println("QR: no cabe"); return; }
+  qrcode_initText(&code, buffer, version, ECC_MEDIUM, data.c_str());
+  Serial.printf("QR v%d (%d modulos): %s\n", version, code.size, data.c_str());
+  for (int r = 0; r < code.size; r++) {
+    for (int c = 0; c < code.size; c++) Serial.print(qrcode_getModule(&code, c, r) ? '#' : '.');
+    Serial.println();
+  }
+  Serial.println("QR fin");
 }
 
 }  // namespace display
