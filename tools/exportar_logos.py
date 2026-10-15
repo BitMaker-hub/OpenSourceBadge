@@ -20,8 +20,8 @@ BG = (0x0C, 0x0E, 0x13)
 LOGOS = [
     ("LOGO_BAMS_MEDALLION", "bAMS_Medallion_Orange.png", None, 88),
     ("LOGO_BAMS_WORDMARK", "bAMS_Logo_OrangeWhite.png", (560, 0, 1803, 515), 124),
-    ("LOGO_BITMAKER", "bitmaker.png", None, 96),
-    ("LOGO_BITRONICS", "bitronics.png", None, 150),
+    ("LOGO_BITMAKER", "bitmaker.png", None, 76),
+    ("LOGO_BITRONICS", "bitronics.png", None, 124),
 ]
 
 

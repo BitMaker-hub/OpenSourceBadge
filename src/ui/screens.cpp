@@ -192,11 +192,11 @@ void bootAmsterdam(uint32_t t) {
 }
 
 void bootMakers(uint32_t t) {
-  fadedText("DESIGNED BY", 40, Font::Label, ink::Dim, sceneFade(t, 0, 300));
-  display::logo(LOGO_BITMAKER, CX, 58, sceneFade(t, 100, 500));
-  fadedText("BUILT BY", 178, Font::Label, ink::Dim, sceneFade(t, 600, 300));
-  display::logo(LOGO_BITRONICS, CX, 196, sceneFade(t, 700, 500));
-  fadedText("bitronics.store", 228, Font::Body, ink::Dim, sceneFade(t, 1000, 400));
+  fadedText("DESIGNED BY", 72, Font::Label, ink::Dim, sceneFade(t, 0, 300));
+  display::logo(LOGO_BITMAKER, CX, 90, sceneFade(t, 100, 500));
+  fadedText("BUILT BY", 183, Font::Label, ink::Dim, sceneFade(t, 600, 300));
+  display::logo(LOGO_BITRONICS, CX, 201, sceneFade(t, 700, 500));
+  fadedText("bitronics.store", 230, Font::Body, ink::Dim, sceneFade(t, 1000, 400));
 }
 
 
