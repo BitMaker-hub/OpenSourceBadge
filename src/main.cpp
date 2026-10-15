@@ -36,6 +36,7 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   d          = cargar los datos de demo del prototipo (no se guardan)
 //   n042       = grabar el número de serie del badge (fábrica)
 //   Nnpub1...  = cambiar el npub del perfil (y Nostr empieza a escuchar ese)
+//   Wred|clave = guardar la WiFi con internet para los zaps
 //   i          = estado: perfil, WiFi de internet y Nostr
 //   Z          = poner a cero el contador de sats recibidos
 //   X          = borrar perfil y peers (dejarlo como nuevo)
@@ -69,6 +70,18 @@ static ButtonEvent readSerialCommand() {
       badge::saveMe();
       nostrzaps::reload();
       Serial.printf("npub: %s\n", npub.c_str());
+      return ButtonEvent::None;
+    }
+    case 'W': {
+      const String line = Serial.readStringUntil('\n');
+      const int bar = line.indexOf('|');
+      String ssid = bar < 0 ? line : line.substring(0, bar);
+      String password = bar < 0 ? "" : line.substring(bar + 1);
+      ssid.trim();
+      password.trim();
+      storage::saveNetwork(ssid, password);
+      nostrzaps::reload();
+      Serial.printf("WiFi guardada: %s\n", ssid.c_str());
       return ButtonEvent::None;
     }
     case 'i': {
