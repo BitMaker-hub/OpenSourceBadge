@@ -47,6 +47,15 @@ static void useFont(Font f) {
 
 void text(const String& s, int x, int y, Font f, uint16_t color, Align a) {
   useFont(f);
+
+  // Red de seguridad: si un texto se sale de la pantalla, avisamos por el puerto serie
+  const int w = lienzo.textWidth(s);
+  const int left = a == Align::Left ? x : a == Align::Center ? x - w / 2 : x - w;
+  if (left < 0 || left + w > SCREEN_W) {
+    static String lastWarning;
+    if (s != lastWarning) Serial.printf("[pantalla] no cabe (%d px): \"%s\"\n", w, s.c_str());
+    lastWarning = s;
+  }
   lienzo.setTextColor(color);   // sin color de fondo: el texto es transparente
   lienzo.setTextDatum(a == Align::Left ? TL_DATUM : a == Align::Center ? TC_DATUM : TR_DATUM);
   lienzo.drawString(s, x, y);
@@ -62,6 +71,13 @@ String fit(const String& s, int maxWidth, Font f) {
   String cut = s;
   while (cut.length() > 1 && textWidth(cut + "..", f) > maxWidth) cut.remove(cut.length() - 1);
   return cut + "..";
+}
+
+Font name(const String& s, int centerX, int y, int maxWidth, uint16_t color) {
+  Font f = textWidth(s, Font::Title) <= maxWidth ? Font::Title : Font::Body;
+  // La letra normal es más baja: la bajamos un poco para que quede centrada en el hueco
+  text(fit(s, maxWidth, f), centerX, f == Font::Title ? y : y + 5, f, color, Align::Center);
+  return f;
 }
 
 int wrap(const String& s, int maxWidth, Font f, String* lines, int maxLines) {
@@ -187,6 +203,20 @@ int qr(const String& data, int centerX, int y, int maxSize) {
     for (int c = 0; c < code.size; c++)
       if (qrcode_getModule(&code, c, r)) rect(x + (c + 4) * scale, y + (r + 4) * scale, scale, scale, ink::Bg);
   return side;
+}
+
+void screenshotToSerial() {
+  Serial.printf("SHOT %d %d\n", SCREEN_W, SCREEN_H);
+  uint8_t row[SCREEN_W * 2];
+  for (int y = 0; y < SCREEN_H; y++) {
+    for (int x = 0; x < SCREEN_W; x++) {
+      const uint16_t c = lienzo.readPixel(x, y);
+      row[x * 2] = c >> 8;
+      row[x * 2 + 1] = c & 0xFF;
+    }
+    Serial.write(row, sizeof row);
+  }
+  Serial.println("END");
 }
 
 void qrToSerial(const String& data) {

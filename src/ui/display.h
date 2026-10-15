@@ -68,6 +68,10 @@ void roundRect(int x, int y, int w, int h, uint16_t color);   // esquinas de 1 p
 void text(const String& s, int x, int y, Font f = Font::Body, uint16_t color = ink::Fg, Align a = Align::Left);
 int  textWidth(const String& s, Font f = Font::Body);
 String fit(const String& s, int maxWidth, Font f = Font::Body);   // recorta con ".." si no cabe
+
+// Para nombres: en letra grande si cabe; si no, en letra normal; y si tampoco, recortado.
+// Devuelve la fuente que ha usado, por si hay que colocar algo debajo.
+Font name(const String& s, int centerX, int y, int maxWidth, uint16_t color = ink::Fg);
 // Parte el texto en líneas de como mucho maxWidth. Devuelve cuántas ha escrito en `lines`.
 int  wrap(const String& s, int maxWidth, Font f, String* lines, int maxLines);
 
@@ -87,6 +91,10 @@ uint16_t blend(uint16_t a, uint16_t b, uint8_t amount);
 // Dibuja un QR centrado en centerX, lo más grande posible sin pasar de maxSize.
 // Devuelve el lado en píxeles (0 si el texto no cabe en un QR).
 int  qr(const String& data, int centerX, int y, int maxSize);
+
+// Manda por el puerto serie la imagen que hay ahora en el lienzo (captura de pantalla).
+// Formato: una línea "SHOT 170 320", los píxeles en RGB565 (2 bytes, fila a fila) y "END".
+void screenshotToSerial();
 
 // Escribe por el puerto serie el mismo QR, con '#' y '.', para comprobarlo en el ordenador
 void qrToSerial(const String& data);

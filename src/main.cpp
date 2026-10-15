@@ -34,7 +34,10 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   d          = cargar los datos de demo del prototipo (no se guardan)
 //   n042       = grabar el número de serie del badge (fábrica)
 //   X          = borrar perfil y peers (dejarlo como nuevo)
+//   c          = captura de la pantalla (la lee tools/captura.py)
 //   q          = escribir los QR del badge con '#' y '.' para comprobarlos
+static bool screenshotPending = false;
+
 static ButtonEvent readSerialCommand() {
   if (!Serial.available()) return ButtonEvent::None;
   switch (Serial.read()) {
@@ -44,6 +47,7 @@ static ButtonEvent readSerialCommand() {
       if (n > 0 && n < 1000) { badge::setNumber(n); Serial.printf("Badge #%03d\n", n); }
       return ButtonEvent::None;
     }
+    case 'c': screenshotPending = true; return ButtonEvent::None;
     case 'q': {
       display::qrToSerial(portal::wifiQr());
       QrItem items[badge::MAX_QRS];
@@ -87,4 +91,9 @@ void loop() {
   app::update(event);   // el estado actual pinta LEDs y pantalla en memoria
   leds::show();
   display::push();
+
+  if (screenshotPending) {
+    display::screenshotToSerial();
+    screenshotPending = false;
+  }
 }

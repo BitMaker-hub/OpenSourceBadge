@@ -38,7 +38,7 @@ void profile() {
   header(title, ink::Orange);
 
   avatars::card(me.role, 37, 26, 3);
-  display::text(display::fit(me.name, 158, Font::Title), CX, 132, Font::Title, ink::Fg, Align::Center);
+  display::name(me.name, CX, 132, 158);
   display::text(display::fit(me.handle.length() ? me.handle : me.npub.substring(0, 12) + "..", 158),
                 CX, 158, Font::Body, ink::Dim, Align::Center);
   display::chip(roleInfo(me.role).name, CX, 177, roleInfo(me.role).color);
@@ -49,7 +49,7 @@ void profile() {
   const Row rows[] = {
     {Icon::Peers, ink::Orange, "Peers",            String(badge::peerCount())},
     {Icon::Bolt,  ink::Gold,   "Social hash",      badge::socialHash() + " TH"},
-    {Icon::Bars,  ink::Ok,     "Decentralization", String(badge::decentralization()) + "%"},
+    {Icon::Bars,  ink::Ok,     "Decentralized",    String(badge::decentralization()) + "%"},
   };
   for (int i = 0; i < 3; i++) {
     const int y = 198 + i * 20;
@@ -270,7 +270,7 @@ void setupSaved() {
   header("SETUP", ink::Ok);
   display::text("Saved!", CX, 30, Font::Title, ink::Ok, Align::Center);
   avatars::card(me.role, 37, 74, 3);
-  display::text(display::fit(me.name, 158, Font::Title), CX, 184, Font::Title, ink::Fg, Align::Center);
+  display::name(me.name, CX, 184, 158);
   display::chip(roleInfo(me.role).name, CX, 214, roleInfo(me.role).color);
   display::text("Welcome to the network", CX, 250, Font::Body, ink::Dim, Align::Center);
 }
@@ -291,7 +291,7 @@ void seedLab(int selected) {
     display::text(NAMES[i], 18, y + 2, Font::Title, on ? ink::Orange : ink::Fg);
     display::text(INFO[i], 18, y + 28, Font::Body, ink::Dim);
   }
-  centeredLines("Learn how a Bitcoin seed is born, step by step.", 232, 150, 2, 16, ink::Soft);
+  centeredLines("Learn how a Bitcoin seed is born, step by step.", 228, 150, 3, 16, ink::Soft);
   display::text("PEER next - MODE go", CX, 286, Font::Body, ink::Dim, Align::Center);
   display::text("SEED exit", CX, 302, Font::Body, ink::Dim, Align::Center);
 }
@@ -357,8 +357,9 @@ void handshakeMining(const String* hashes, int count, uint8_t progress, uint32_t
 void handshakeNotFound() {
   header("PEER", ink::Nostr);
   avatars::card(badge::me().role, 53, 80, 2);
-  display::text("No badge nearby", CX, 180, Font::Title, ink::Fg, Align::Center);
-  centeredLines("Both press PEER at the same time and hold the badges close.", 216, 150, 3, 16, ink::Dim);
+  display::text("No badge", CX, 170, Font::Title, ink::Fg, Align::Center);
+  display::text("nearby", CX, 196, Font::Title, ink::Fg, Align::Center);
+  centeredLines("Both press PEER at the same time and hold the badges close.", 232, 150, 3, 16, ink::Dim);
 }
 
 void handshakeMined(const Peer& other) {
@@ -366,7 +367,7 @@ void handshakeMined(const Peer& other) {
   display::text("Block #" + String(other.block), CX, 20, Font::Title, ink::Ok, Align::Center);
   display::text("MINED!", CX, 48, Font::LabelBig, ink::Ok, Align::Center);
   avatars::card(other.role, 37, 74, 3);
-  display::text(other.name, CX, 180, Font::Title, ink::Fg, Align::Center);
+  display::name(other.name, CX, 180, 158);
   display::chip(roleInfo(other.role).name, CX, 208, roleInfo(other.role).color);
   display::text("+1 peer", CX, 224, Font::Title, ink::Orange, Align::Center);
   display::text("Contact saved", CX, 254, Font::Body, ink::Dim, Align::Center);
