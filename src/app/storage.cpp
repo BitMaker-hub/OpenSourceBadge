@@ -55,6 +55,16 @@ void     saveNumber(uint16_t n)  { prefs.putUShort("number", n); }
 int16_t  loadTimezone()          { return prefs.getShort("tz", 0); }
 void     saveTimezone(int16_t m) { prefs.putShort("tz", m); }
 
+void loadNetwork(String& ssid, String& password) {
+  ssid = prefs.getString("net_ssid");
+  password = prefs.getString("net_pass");
+}
+
+void saveNetwork(const String& ssid, const String& password) {
+  prefs.putString("net_ssid", ssid);
+  prefs.putString("net_pass", password);
+}
+
 uint32_t loadBlockHeight()       { return prefs.getULong("block", 0); }
 void     saveBlockHeight(uint32_t h) { prefs.putULong("block", h); }
 uint32_t loadSats()              { return prefs.getULong("sats", 0); }

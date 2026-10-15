@@ -61,9 +61,19 @@ El mismo `effects::trail(...)` hace la estela de un zap por la B o un barrido po
 T-Display (600 mA, compartido con el ESP32), así que ningún efecto puede pasarse. Si todos están apagados,
 corta la alimentación de los LEDs (Q1).
 
+## Zaps de Nostr
+
+En `badge.local` se pone el npub y una WiFi con internet (la del evento o el hotspot del móvil). El badge se
+conecta a relay.damus.io y relay.primal.net y se suscribe a los recibos de zap (kind 9735) dirigidos a ese npub.
+Cuando llega uno enseña la cantidad, quién lo manda (su nombre de Nostr si lo encuentra) y el mensaje, y enciende
+la ₿. Los sats van a la wallet de cada uno: el badge solo escucha. El punto morado de la cabecera indica que está
+escuchando; gris, que está conectando.
+
+Para probar sin internet: `J` seguido del mensaje del relay en una línea (ver `tools/`).
+
 ## Pendiente
 
 - Perfil guardado en la memoria (NVS), WiFi propia y página `badge.local`.
 - Handshake de verdad por ESP-NOW (ahora el peer es inventado).
-- Monedero LNbits y zaps de verdad (ahora `z` los simula).
+- Avisar de pagos Lightning que no vengan de Nostr (Nostr Wallet Connect).
 - Las fuentes del prototipo (VT323 y Silkscreen); ahora se usan las de TFT_eSPI.

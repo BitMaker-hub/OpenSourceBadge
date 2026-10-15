@@ -113,15 +113,20 @@ static void batteryIcon(int x, int y, uint8_t pct) {
   rect(x + 2, y + 2, 11 * pct / 100, 3, pct > 20 ? ink::Ok : ink::Red);
 }
 
-void header(const String& title, uint16_t titleColor, uint8_t batteryPercent) {
+void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, uint16_t dotColor) {
   rect(0, 0, SCREEN_W, 17, ink::Card);
   rect(0, 17, SCREEN_W, 1, ink::Line);
   text(title, 6, 1, Font::Body, titleColor);
+  int right = 143;                                   // lo que va a la izquierda de la pila
   if (power::usbConnected()) {
-    text("USB", 143, 5, Font::Label, ink::Dim, Align::Right);
+    text("USB", right, 5, Font::Label, ink::Dim, Align::Right);
+    right -= textWidth("USB", Font::Label);
   } else {
-    text(String(batteryPercent) + "%", 143, 1, Font::Body, ink::Dim, Align::Right);
+    const String pct = String(batteryPercent) + "%";
+    text(pct, right, 1, Font::Body, ink::Dim, Align::Right);
+    right -= textWidth(pct, Font::Body);
   }
+  if (dotColor) lienzo.fillCircle(right - 7, 8, 3, dotColor);
   batteryIcon(148, 5, batteryPercent);
 }
 

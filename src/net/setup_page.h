@@ -25,6 +25,7 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   input{width:100%;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:16px}
   input:focus{outline:2px solid var(--or);border-color:transparent}
   .hint{font-size:12px;color:var(--dim);margin-top:4px}
+  p.hint{font-size:13px;margin:0 0 4px}
   button.save{margin-top:24px;width:100%;padding:14px;border:0;border-radius:10px;background:var(--or);color:#0c0e13;font:700 17px system-ui}
   #msg{text-align:center;margin-top:14px;min-height:22px}
   .px{font-family:ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;letter-spacing:.04em}
@@ -71,6 +72,15 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   <label for="tagline">Your line</label>
   <input id="tagline" maxlength="40" placeholder="Stay humble, stack sats">
 
+  <h2>Catch your zaps</h2>
+  <p class="hint">Your badge lights up when someone zaps your npub on Nostr. It needs internet for that:
+    your phone hotspot or the venue WiFi. The sats go to your own wallet; the badge only listens.</p>
+  <label for="wifi">WiFi name</label>
+  <input id="wifi" maxlength="32" list="nets" autocapitalize="off" spellcheck="false" placeholder="Pick or type a network">
+  <datalist id="nets"></datalist>
+  <label for="wifipass">WiFi password</label>
+  <input id="wifipass" type="password" maxlength="63" autocomplete="off">
+
   <button class="save" id="save">Save to my badge</button>
   <div id="msg" role="status"></div>
 </main>
@@ -107,15 +117,28 @@ fetch("/api/profile").then(r => r.json()).then(p => {
     $("roles").append(b);
   });
   ["name", "handle", "npub", "ln", "tagline"].forEach(k => { $(k).value = p[k] || ""; $(k).oninput = refresh; });
+  $("wifi").value = p.wifi || "";
+  $("wifipass").placeholder = p.wifiSaved ? "Saved (leave empty to keep it)" : "";
   pick(p.role);
   refresh();
 });
+
+// Las redes que ve el badge (tarda unos segundos la primera vez)
+function loadNetworks(tries) {
+  fetch("/api/networks").then(r => r.json()).then(list => {
+    if (!list.length && tries > 0) return setTimeout(() => loadNetworks(tries - 1), 2000);
+    $("nets").innerHTML = "";
+    list.forEach(n => { const o = document.createElement("option"); o.value = n; $("nets").append(o); });
+  }).catch(() => {});
+}
+loadNetworks(5);
 
 $("save").onclick = () => {
   const npub = $("npub").value.trim();
   if (npub && !npub.startsWith("npub1")) { show("That Nostr key should start with npub1", "err"); return; }
   const body = new URLSearchParams({
     role, name: $("name").value, handle: $("handle").value, npub, ln: $("ln").value, tagline: $("tagline").value,
+    wifi: $("wifi").value, wifipass: $("wifipass").value,
     now: Math.floor(Date.now() / 1000), tz: -new Date().getTimezoneOffset()
   });
   fetch("/api/profile", {method: "POST", body}).then(r => r.ok ? show("Saved! Look at your badge.", "ok")

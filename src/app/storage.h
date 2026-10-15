@@ -25,6 +25,10 @@ void     saveNumber(uint16_t n);
 int16_t  loadTimezone();
 void     saveTimezone(int16_t minutes);
 
+// WiFi con internet para enterarse de los zaps (la del evento o la del móvil)
+void loadNetwork(String& ssid, String& password);
+void saveNetwork(const String& ssid, const String& password);
+
 // Contador de bloques "minados" (handshakes hechos)
 uint32_t loadBlockHeight();
 void     saveBlockHeight(uint32_t h);

@@ -31,6 +31,7 @@ window.fetch = (url, opt) => {
     return Promise.resolve({json: () => ({number: 42, name: "satoshi.friends", handle: "@satoshi", npub: "", ln: "",
       tagline: "Stay humble, stack sats", role: "DEV", roles: ${JSON.stringify(roles)}})});
   if (url === "/api/profile") return new Promise(r => setTimeout(() => r({ok: true}), 400));
+  if (url === "/api/networks") return Promise.resolve({json: () => ["BitcoinAmsterdam-Guest", "iPhone", "Bitronics"]});
   return _fetch(url, opt);
 };
 new MutationObserver(() => document.querySelectorAll("img[src^='/avatar.svg']").forEach(i => i.src = AVATARS[i.src.split("r=")[1]]))

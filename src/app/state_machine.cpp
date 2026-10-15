@@ -9,6 +9,7 @@
 #include "../ui/screens.h"
 #include "../net/setup_portal.h"
 #include "../net/peer_link.h"
+#include "../net/nostr_zaps.h"
 
 namespace app {
 
@@ -263,11 +264,23 @@ static void handshake(ButtonEvent ev, uint32_t t) {
 
 static Zap zapShown;
 
-void simulateZap() {
-  zapShown = badge::nextDemoZap();
-  badge::addSats(zapShown.amount);
+static void showZap(const Zap& z) {
+  zapShown = z;
+  badge::addSats(z.amount);
   if (isHomePage(state)) returnTo = state;
-  if (state != State::HardwareTest) go(State::Zap);
+  go(State::Zap);
+}
+
+void simulateZap() {
+  if (state != State::HardwareTest) showZap(badge::nextDemoZap());
+}
+
+// Los zaps de Nostr solo interrumpen las páginas de inicio u otro zap; si estás
+// configurando o en un handshake, esperan en la cola a que termines
+static void checkNostrZaps() {
+  if (!isHomePage(state) && state != State::Zap) return;
+  Zap z;
+  if (nostrzaps::nextZap(z)) showZap(z);
 }
 
 static void zap(ButtonEvent ev, uint32_t t) {
@@ -391,6 +404,7 @@ static void hardwareTest(ButtonEvent ev, uint32_t t) {
 
 void begin() {
   badge::begin();
+  nostrzaps::begin();
   // SEED pulsado al encender: directo a la prueba de placa
   if (digitalRead(PIN_BTN_SEED) == LOW) go(State::HardwareTest);
   else go(State::Boot);
@@ -398,8 +412,9 @@ void begin() {
 
 static void onEnter(State s) {
   switch (s) {
-    case State::Handshake:    startHandshake();    break;
-    case State::Setup:        setupSavedAt = 0; portal::start(); break;
+    // La radio solo hace una cosa a la vez: el handshake y el SETUP apartan a Nostr
+    case State::Handshake:    nostrzaps::pause(); startHandshake(); break;
+    case State::Setup:        nostrzaps::pause(); setupSavedAt = 0; portal::start(); break;
     case State::SeedLab:      seedSelected = 0;    break;
     case State::HardwareTest: startHardwareTest(); break;
     default:                                       break;   // el resto no prepara nada
@@ -408,8 +423,8 @@ static void onEnter(State s) {
 
 static void onExit(State s) {
   switch (s) {
-    case State::Handshake: peerlink::stop(); break;   // radio apagada: ahorra batería
-    case State::Setup:     portal::stop();   break;
+    case State::Handshake: peerlink::stop(); nostrzaps::resume(); break;
+    case State::Setup:     portal::stop();   nostrzaps::reload(); nostrzaps::resume(); break;   // quizá cambió la WiFi o el npub
     default:                                 break;
   }
 }
@@ -435,6 +450,7 @@ static void runState(ButtonEvent ev) {
 }
 
 void update(ButtonEvent ev) {
+  checkNostrZaps();
   const State before = state;
   runState(ev);
   // Si el estado ha cambiado, el nuevo dibuja ya su primera imagen;

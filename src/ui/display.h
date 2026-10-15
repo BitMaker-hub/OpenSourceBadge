@@ -76,7 +76,8 @@ Font name(const String& s, int centerX, int y, int maxWidth, uint16_t color = in
 int  wrap(const String& s, int maxWidth, Font f, String* lines, int maxLines);
 
 // ---- piezas ----
-void header(const String& title, uint16_t titleColor, uint8_t batteryPercent);
+// dotColor: un puntito antes de la batería (0 = sin punto). Lo usa Nostr para decir si escucha.
+void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, uint16_t dotColor = 0);
 int  chip(const String& label, int centerX, int y, uint16_t color);      // devuelve el ancho
 void pageDots(int current, int count);
 void icon(Icon which, int x, int y, uint16_t color);

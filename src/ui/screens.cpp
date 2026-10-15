@@ -6,6 +6,7 @@
 #include "../hardware/leds.h"
 #include "../hardware/power.h"
 #include "../net/setup_portal.h"
+#include "../net/nostr_zaps.h"
 
 namespace screens {
 
@@ -18,8 +19,17 @@ static String thousands(uint32_t n) {
   return s;
 }
 
+// Cabecera de todas las pantallas. El punto dice cómo va Nostr:
+// morado = escuchando zaps, gris = conectando, sin punto = sin configurar o en pausa
 static void header(const String& title, uint16_t color) {
-  display::header(title, color, power::batteryPercent());
+  uint16_t dot = 0;
+  switch (nostrzaps::status()) {
+    case nostrzaps::Status::Listening:       dot = ink::Nostr; break;
+    case nostrzaps::Status::ConnectingWifi:
+    case nostrzaps::Status::ConnectingRelay: dot = ink::Dim;   break;
+    default:                                 break;
+  }
+  display::header(title, color, power::batteryPercent(), dot);
 }
 
 // Texto partido en líneas y centrado

@@ -92,6 +92,7 @@ uint32_t      blockHeight();          // cada handshake "mina" un bloque
 void          setBlockHeight(uint32_t h);
 uint32_t      satsReceived();
 void          addSats(uint32_t amount);
+void          resetSats();            // contador de zaps a cero (comando serie Z)
 uint8_t       decentralization();     // 0..99, cuantos más roles distintos, más alto
 String        socialHash();           // "1.4"
 

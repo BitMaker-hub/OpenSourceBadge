@@ -127,6 +127,11 @@ void addSats(uint32_t a) {
   if (!demo) storage::saveSats(sats);
 }
 
+void resetSats() {
+  sats = 0;
+  if (!demo) storage::saveSats(0);
+}
+
 uint8_t decentralization() {
   int roles = 0;
   for (int r = 0; r < (int)Role::Count; r++) if (metRole((Role)r)) roles++;

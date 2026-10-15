@@ -24,6 +24,7 @@
 #include "app/state_machine.h"
 #include "app/badge.h"
 #include "net/setup_portal.h"
+#include "net/nostr_zaps.h"
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 
@@ -33,8 +34,10 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   z          = simular que llega un zap
 //   d          = cargar los datos de demo del prototipo (no se guardan)
 //   n042       = grabar el número de serie del badge (fábrica)
+//   Z          = poner a cero el contador de sats recibidos
 //   X          = borrar perfil y peers (dejarlo como nuevo)
 //   c          = captura de la pantalla (la lee tools/captura.py)
+//   J{...}     = probar un mensaje de relay de Nostr (un recibo de zap en una línea)
 //   q          = escribir los QR del badge con '#' y '.' para comprobarlos
 static bool screenshotPending = false;
 
@@ -48,6 +51,7 @@ static ButtonEvent readSerialCommand() {
       return ButtonEvent::None;
     }
     case 'c': screenshotPending = true; return ButtonEvent::None;
+    case 'J': nostrzaps::injectForTest(Serial.readStringUntil('\n')); return ButtonEvent::None;
     case 'q': {
       display::qrToSerial(portal::wifiQr());
       QrItem items[badge::MAX_QRS];
@@ -55,6 +59,7 @@ static ButtonEvent readSerialCommand() {
       for (int i = 0; i < n; i++) display::qrToSerial(items[i].data);
       return ButtonEvent::None;
     }
+    case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;
     case 'X': badge::factoryReset(); Serial.println("Badge borrado"); return ButtonEvent::None;
     case 'p': return ButtonEvent::PeerShort;
     case 'P': return ButtonEvent::PeerLong;
@@ -68,6 +73,7 @@ static ButtonEvent readSerialCommand() {
 }
 
 void setup() {
+  Serial.setRxBufferSize(8192);   // para el comando J: un recibo de zap ocupa varios KB
   Serial.begin(115200);
   power::begin();     // lo primero: sin GPIO15 alto, con batería no hay pantalla
   buttons::begin();
