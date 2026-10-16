@@ -1,4 +1,5 @@
 #include "screens.h"
+#include "screen_parts.h"
 #include "display.h"
 #include "avatars.h"
 #include "logos_data.h"
@@ -21,7 +22,7 @@ static String thousands(uint32_t n) {
 
 // Cabecera de todas las pantallas. El punto dice cómo va Nostr:
 // morado = escuchando zaps, gris = conectando, sin punto = sin configurar o en pausa
-static void header(const String& title, uint16_t color) {
+void header(const String& title, uint16_t color) {
   uint16_t dot = 0;
   switch (nostrzaps::status()) {
     case nostrzaps::Status::Listening:       dot = ink::Nostr; break;
@@ -33,7 +34,7 @@ static void header(const String& title, uint16_t color) {
 }
 
 // Texto partido en líneas y centrado
-static void centeredLines(const String& s, int y, int maxWidth, int maxLines, int lineHeight, uint16_t color) {
+void centeredLines(const String& s, int y, int maxWidth, int maxLines, int lineHeight, uint16_t color) {
   String lines[4];
   const int n = display::wrap(s, maxWidth, Font::Body, lines, min(maxLines, 4));
   for (int i = 0; i < n; i++) display::text(lines[i], CX, y + i * lineHeight, Font::Body, color, Align::Center);
@@ -283,27 +284,6 @@ void setupSaved() {
   display::name(me.name, CX, 184, 158);
   display::chip(roleInfo(me.role).name, CX, 214, roleInfo(me.role).color);
   display::text("Welcome to the network", CX, 250, Font::Body, ink::Dim, Align::Center);
-}
-
-void seedLab(int selected) {
-  header("SEED LAB", ink::Red);
-  display::roundRect(6, 22, 158, 36, rgb(0x2A1416));
-  display::text("Radio off", 14, 24, Font::Body, ink::Red);
-  display::text("Offline, nothing is sent", 14, 40, Font::Body, rgb(0xE6A5A5));
-
-  static const char* const NAMES[] = {"Dice", "Coin", "Express"};
-  static const char* const INFO[]  = {"99 rolls - 256 bits", "256 flips", "chip RNG - instant"};
-  for (int i = 0; i < 3; i++) {
-    const int y = 70 + i * 52;
-    const bool on = i == selected;
-    display::roundRect(6, y, 158, 46, on ? rgb(0x2B1C08) : ink::Card);
-    if (on) display::rect(6, y + 2, 3, 42, ink::Orange);
-    display::text(NAMES[i], 18, y + 2, Font::Title, on ? ink::Orange : ink::Fg);
-    display::text(INFO[i], 18, y + 28, Font::Body, ink::Dim);
-  }
-  centeredLines("Learn how a Bitcoin seed is born, step by step.", 228, 150, 3, 16, ink::Soft);
-  display::text("PEER next - MODE go", CX, 286, Font::Body, ink::Dim, Align::Center);
-  display::text("SEED exit", CX, 302, Font::Body, ink::Dim, Align::Center);
 }
 
 static const char* const BOLT[] = {

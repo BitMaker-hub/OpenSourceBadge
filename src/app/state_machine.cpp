@@ -10,6 +10,7 @@
 #include "../net/setup_portal.h"
 #include "../net/peer_link.h"
 #include "../net/nostr_zaps.h"
+#include "seed_lab.h"
 
 namespace app {
 
@@ -292,16 +293,11 @@ static void zap(ButtonEvent ev, uint32_t t) {
 }
 
 // ============================================================ SEED LAB
-
-static int seedSelected = 0;
+//
+// Tiene su propia máquina de estados en app/seed_lab: aquí solo se entra y se sale.
 
 static void seedLab(ButtonEvent ev, uint32_t t) {
-  if (ev == ButtonEvent::SeedShort || ev == ButtonEvent::SeedLong) return go(returnTo);
-  if (ev == ButtonEvent::PeerShort) seedSelected = (seedSelected + 1) % 3;
-  // MODE: aquí arrancará el generador elegido (por hacer)
-
-  leds::set(0, colors::Red);   // un LED rojo: la radio está apagada
-  screens::seedLab(seedSelected);
+  if (!seedlab::update(ev, t)) go(returnTo);
 }
 
 // ============================================================ SETUP
@@ -415,7 +411,7 @@ static void onEnter(State s) {
     // La radio solo hace una cosa a la vez: el handshake y el SETUP apartan a Nostr
     case State::Handshake:    nostrzaps::pause(); startHandshake(); break;
     case State::Setup:        nostrzaps::pause(); setupSavedAt = 0; portal::start(); break;
-    case State::SeedLab:      seedSelected = 0;    break;
+    case State::SeedLab:      nostrzaps::pause(); seedlab::start(); break;   // radio apagada mientras haya semillas
     case State::HardwareTest: startHardwareTest(); break;
     default:                                       break;   // el resto no prepara nada
   }
@@ -425,6 +421,7 @@ static void onExit(State s) {
   switch (s) {
     case State::Handshake: peerlink::stop(); nostrzaps::resume(); break;
     case State::Setup:     portal::stop();   nostrzaps::reload(); nostrzaps::resume(); break;   // quizá cambió la WiFi o el npub
+    case State::SeedLab:   seedlab::wipe();  nostrzaps::resume(); break;   // no queda nada en memoria
     default:                                 break;
   }
 }

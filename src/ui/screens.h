@@ -29,7 +29,17 @@ void bootBadge(uint32_t t);
 void qrFullscreen(const QrItem& item);
 void setup(uint32_t t, int phonesConnected);
 void setupSaved();
-void seedLab(int selected);
+
+// Seed Lab (ui/screens_seed.cpp)
+void seedMenu(bool coinSelected);
+void seedWords(uint8_t nWords, bool coin);
+void seedCoin(uint16_t done, uint16_t total, const uint8_t* entropy);
+void seedDice(uint8_t done, uint8_t total, uint8_t value, const uint8_t* lastRolls);
+void seedGenerating();
+void seedMnemonic(const String& mnemonic, int from, int nWords, int page, int pages);
+void seedAddress(const String& address, int page, int pages);
+void seedEntropy(const String& hex, bool fromDice, int page, int pages);
+void seedDone(int page, int pages);
 void zap(const Zap& z, uint32_t t);
 
 // Handshake, un dibujo por paso

@@ -71,9 +71,19 @@ escuchando; gris, que está conectando.
 
 Para probar sin internet: `J` seguido del mensaje del relay en una línea (ver `tools/`).
 
+## Seed Lab
+
+Para aprender cómo nace una semilla. Se elige dado (50 o 99 tiradas) o moneda (128 o 256), 12 o 24 palabras, y se
+mete la entropía a mano con un dado o una moneda de verdad (moneda: PEER cara, MODE cruz; dado: PEER cambia la cara,
+MODE apunta). El badge saca las palabras BIP39, la primera dirección (m/84'/0'/0'/0/0) y la entropía, igual que el
+Seeder (las tiradas se pasan por SHA-256 como en Coldcard). Comprobado contra embit con las mismas tiradas.
+
+Mientras dura: radio apagada, capturas por el puerto serie bloqueadas y todo borrado de la memoria al salir. Es para
+aprender: el badge tiene radio y para fondos de verdad hay que usar un dispositivo sin conexión, como el Seeder.
+
 ## Pendiente
 
-- Perfil guardado en la memoria (NVS), WiFi propia y página `badge.local`.
-- Handshake de verdad por ESP-NOW (ahora el peer es inventado).
+- Probar el handshake con dos badges.
+- Batería: medir consumo y apagar o atenuar pantalla y WiFi.
+- Modo NerdMiner.
 - Avisar de pagos Lightning que no vengan de Nostr (Nostr Wallet Connect).
-- Las fuentes del prototipo (VT323 y Silkscreen); ahora se usan las de TFT_eSPI.

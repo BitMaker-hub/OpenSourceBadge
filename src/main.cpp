@@ -134,7 +134,13 @@ void loop() {
   display::push();
 
   if (screenshotPending) {
-    display::screenshotToSerial();
+    // En el Seed Lab puede haber palabras en pantalla: por el USB no salen nunca
+    bool allowed = app::current() != State::SeedLab;
+#ifdef SEEDLAB_ALLOW_SCREENSHOTS   // solo para revisar las pantallas en el taller, nunca en un badge de verdad
+    allowed = true;
+#endif
+    if (allowed) display::screenshotToSerial();
+    else Serial.println("Captura no permitida en el Seed Lab");
     screenshotPending = false;
   }
 }
