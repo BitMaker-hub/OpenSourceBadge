@@ -35,6 +35,7 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   z          = simular que llega un zap
 //   d          = cargar los datos de demo del prototipo (no se guardan)
 //   n042       = grabar el número de serie del badge (fábrica)
+//   Ycampo=valor = cambiar el perfil: name, role (DEV, MINER, PLEB, WHALE, NOSTRICH, ANON), handle, tagline
 //   Nnpub1...  = cambiar el npub del perfil (y Nostr empieza a escuchar ese)
 //   Wred|clave = guardar la WiFi con internet para los zaps
 //   i          = estado: perfil, WiFi de internet y Nostr
@@ -61,6 +62,21 @@ static ButtonEvent readSerialCommand() {
       QrItem items[badge::MAX_QRS];
       const int n = badge::qrItems(items);
       for (int i = 0; i < n; i++) display::qrToSerial(items[i].data);
+      return ButtonEvent::None;
+    }
+    case 'Y': {
+      const String line = Serial.readStringUntil('\n');
+      const int eq = line.indexOf('=');
+      const String field = line.substring(0, eq);
+      String value = line.substring(eq + 1);
+      value.trim();
+      Profile& me = badge::me();
+      if (field == "name")    me.name = badge::clean(value, NAME_LEN);
+      if (field == "role")    me.role = roleFromName(value);
+      if (field == "handle")  me.handle = value.length() ? "@" + badge::clean(value, HANDLE_LEN - 1).substring(value.startsWith("@") ? 1 : 0) : "";
+      if (field == "tagline") me.tagline = badge::clean(value, TAGLINE_LEN);
+      badge::saveMe();
+      Serial.printf("Perfil: %s (%s)\n", me.name.c_str(), roleInfo(me.role).name);
       return ButtonEvent::None;
     }
     case 'N': {

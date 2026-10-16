@@ -50,8 +50,9 @@ void profile() {
 
   avatars::card(me.role, 37, 26, 3);
   display::name(me.name, CX, 132, 158);
-  display::text(display::fit(me.handle.length() ? me.handle : me.npub.substring(0, 12) + "..", 158),
-                CX, 158, Font::Body, ink::Dim, Align::Center);
+  // Debajo del nombre: su X, o si no tiene, el principio del npub, o nada
+  const String sub = me.handle.length() ? me.handle : me.npub.length() ? me.npub.substring(0, 12) + ".." : "";
+  if (sub.length()) display::text(display::fit(sub, 158), CX, 158, Font::Body, ink::Dim, Align::Center);
   display::chip(roleInfo(me.role).name, CX, 177, roleInfo(me.role).color);
 
   // Tarjeta con los tres números del badge
