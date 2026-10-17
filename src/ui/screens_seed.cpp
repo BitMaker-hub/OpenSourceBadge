@@ -225,14 +225,14 @@ void seedCoin(uint16_t done, uint16_t total, const uint8_t* entropy) {
 
   // La moneda enseña la última tirada (cara si aún no hay ninguna)
   const bool lastHeads = done == 0 || ((entropy[(done - 1) / 8] >> (7 - (done - 1) % 8)) & 1);
-  pixelCoin(CX, 40, 3, lastHeads);
-  keys(118, "PEER", "heads = 1", "MODE", "tails = 0");     // no caben en una fila: salen en dos (102 y 118)
-  display::text(String(done) + " / " + total, CX, 136, Font::Title, ink::Gold, Align::Center);
+  pixelCoin(CX, 48, 3, lastHeads);
+  keys(126, "PEER", "heads = 1", "MODE", "tails = 0");     // no caben en una fila: salen en dos (110 y 126)
+  display::text(String(done) + " / " + total, CX, 144, Font::Title, ink::Gold, Align::Center);
 
   // Todos los bits: naranja = 1, gris = 0, oscuro = por tirar. Un hueco cada 8 (un byte).
   for (int i = 0; i < (int)total; i++) {
     const int col = i % 16, row = i / 16;
-    const int x = 19 + col * 8 + (col >= 8 ? 2 : 0), y = 170 + row * 7;
+    const int x = 19 + col * 8 + (col >= 8 ? 2 : 0), y = 178 + row * 7;
     uint16_t c = ink::Line;
     if (i < done) c = (entropy[i / 8] >> (7 - i % 8)) & 1 ? ink::Orange : ink::Soft;
     display::rect(x, y, 6, 5, c);
@@ -244,15 +244,15 @@ void seedDice(uint8_t done, uint8_t total, uint8_t value, const uint8_t* lastRol
   seedHeader("ROLL A DIE");
   steps(3, "RANDOMNESS");
 
-  pixelDie(CX - 40, 42, 5, value);
-  keys(130, "PEER", "change", "MODE", "save");
-  display::text(String(done) + " / " + total, CX, 150, Font::Title, ink::Gold, Align::Center);
-  display::rect(14, 184, 142, 5, ink::Line);
-  display::rect(14, 184, 142 * done / total, 5, ink::Orange);
+  pixelDie(CX - 40, 52, 5, value);
+  keys(144, "PEER", "change", "MODE", "save");
+  display::text(String(done) + " / " + total, CX, 164, Font::Title, ink::Gold, Align::Center);
+  display::rect(14, 198, 142, 5, ink::Line);
+  display::rect(14, 198, 142 * done / total, 5, ink::Orange);
 
   if (done > 0) {
-    display::text("LAST ROLLS", CX, 204, Font::Label, ink::Dim, Align::Center);
-    for (int i = 0; i < 3; i++) if (lastRolls[i]) pixelDie(CX - 54 + i * 38, 218, 2, lastRolls[i]);
+    display::text("LAST ROLLS", CX, 218, Font::Label, ink::Dim, Align::Center);
+    for (int i = 0; i < 3; i++) if (lastRolls[i]) pixelDie(CX - 54 + i * 38, 232, 2, lastRolls[i]);
   }
   keys(300, "SEED", "hold to quit");
 }
@@ -322,6 +322,32 @@ void seedEntropy(const String& hex, bool fromDice, int page, int pages) {
   keys(296, "PEER", "next", "MODE", "back");
 }
 
+// Un aviso en una pastilla de color, centrado
+static void pill(const char* text, int y, uint16_t color) {
+  const int w = display::textWidth(text, Font::Label) + 12;
+  display::roundRect(CX - w / 2, y, w, 13, color);
+  display::text(text, CX, y + 3, Font::Label, ink::Bg, Align::Center);
+}
+
+void seedExportQr(const String& mnemonic, int nWords, int page, int pages) {
+  resultHeader("EXPORT", page, pages);
+  display::text(String(nWords) + " seed words", CX, 42, Font::Body, ink::Soft, Align::Center);
+  pill("CAN SPEND - NO PHONES", 62, pal::RadioOff);
+  display::qr(mnemonic, CX, 82, 150);
+  centeredLines("Scan only with an offline wallet.", 240, 154, 2, 16, ink::Dim);
+  keys(296, "PEER", "next", "MODE", "back");
+}
+
+void seedWatchOnly(const String& zpub, const String& fingerprint, int page, int pages) {
+  resultHeader("WATCH", page, pages);
+  display::text("Account zpub", CX, 42, Font::Body, ink::Soft, Align::Center);
+  pill("VIEW ONLY - CAN'T SPEND", 62, ink::Ok);
+  display::qr(zpub, CX, 82, 150);
+  display::text("FINGERPRINT", CX, 240, Font::Label, ink::Dim, Align::Center);
+  display::text(fingerprint, CX, 252, Font::Body, ink::Gold, Align::Center);
+  keys(296, "PEER", "next", "MODE", "back");
+}
+
 void seedDone(int page, int pages) {
   resultHeader("DONE", page, pages);
 
@@ -341,11 +367,11 @@ void seedDone(int page, int pages) {
     "...########...",
     ".....####.....",
   };
-  display::bitmap(SHIELD, 13, CX - 28, 44, 4, ink::Ok);
+  display::bitmap(SHIELD, 13, CX - 21, 48, 3, ink::Ok);
 
-  display::text("Radio was off", CX, 104, Font::Title, ink::Ok, Align::Center);
-  display::text("the whole time", CX, 130, Font::Title, ink::Ok, Align::Center);
-  centeredLines("Nothing left this badge. Your seed lived only in its memory.", 164, 154, 3, 16, ink::Soft);
+  display::text("Radio was off", CX, 96, Font::Title, ink::Ok, Align::Center);
+  display::text("the whole time", CX, 122, Font::Title, ink::Ok, Align::Center);
+  centeredLines("Nothing left this badge. Your seed lived only in its memory.", 160, 154, 3, 16, ink::Soft);
   centeredLines("This is a learning lab. For real savings, use the Seeder.", 216, 154, 3, 16, ink::Dim);
   keys(282, "SEED", "hold: wipe + exit");
   keys(300, "MODE", "back");

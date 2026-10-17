@@ -19,7 +19,7 @@ enum class Step : uint8_t { Menu, Words, Capture, Generating, Result };
 enum class Source : uint8_t { Dice, Coin };
 
 // En el resultado se pasa por estas páginas (la segunda solo con 24 palabras)
-enum class Page : uint8_t { Words1, Words2, Address, Entropy, Done };
+enum class Page : uint8_t { Words1, Words2, Address, Entropy, SeedQr, WatchOnly, Done, Count };
 
 static Step     step;
 static Source   source;
@@ -33,7 +33,7 @@ static uint8_t  lastRolls[3];         // las tres últimas, la más reciente al 
 static uint32_t lastInputAt;          // para el destello de los LEDs
 static bool     lastWasHeads;
 static Page     page;
-static String   mnemonic, firstAddress, entropyHex;
+static String   mnemonic, firstAddress, entropyHex, watchOnly, fingerprint;
 
 // ============================================================ utilidades
 
@@ -50,6 +50,8 @@ void wipe() {
   wipeString(mnemonic);
   wipeString(firstAddress);
   wipeString(entropyHex);
+  wipeString(watchOnly);
+  wipeString(fingerprint);
   memset(entropy, 0, sizeof entropy);
   memset(rolls, 0, sizeof rolls);
   memset(lastRolls, 0, sizeof lastRolls);
@@ -80,9 +82,12 @@ static void generateSeed() {
   HDPrivateKey root(mnemonic, "");
   HDPrivateKey account = root.derive("m/84'/0'/0'/");
   firstAddress = account.derive("0/0").address();
+  watchOnly = account.xpub();          // zpub de la cuenta: ve el saldo, no puede gastar
+  fingerprint = root.fingerprint();    // huella de la clave maestra, como en el Seeder
 }
 
-static int pageCount() { return nWords == 12 ? 4 : 5; }
+static const int PAGES = (int)Page::Count;
+static int pageCount() { return nWords == 12 ? PAGES - 1 : PAGES; }
 
 static int pageIndex() {
   const int p = (int)page;
@@ -92,7 +97,7 @@ static int pageIndex() {
 static void movePage(int dir) {
   int p = (int)page;
   do {
-    p = (p + dir + 5) % 5;
+    p = (p + dir + PAGES) % PAGES;
   } while (nWords == 12 && p == (int)Page::Words2);
   page = (Page)p;
 }
@@ -173,7 +178,10 @@ static bool result(ButtonEvent ev, uint32_t t) {
     case Page::Words2:  screens::seedMnemonic(mnemonic, 12, nWords, index, total); break;
     case Page::Address: screens::seedAddress(firstAddress, index, total);          break;
     case Page::Entropy: screens::seedEntropy(entropyHex, source == Source::Dice, index, total); break;
-    case Page::Done:    screens::seedDone(index, total);                           break;
+    case Page::SeedQr:    screens::seedExportQr(mnemonic, nWords, index, total);   break;
+    case Page::WatchOnly: screens::seedWatchOnly(watchOnly, fingerprint, index, total); break;
+    case Page::Done:      screens::seedDone(index, total);                         break;
+    case Page::Count:     break;
   }
   return true;
 }

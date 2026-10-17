@@ -39,6 +39,8 @@ void seedGenerating();
 void seedMnemonic(const String& mnemonic, int from, int nWords, int page, int pages);
 void seedAddress(const String& address, int page, int pages);
 void seedEntropy(const String& hex, bool fromDice, int page, int pages);
+void seedExportQr(const String& mnemonic, int nWords, int page, int pages);
+void seedWatchOnly(const String& zpub, const String& fingerprint, int page, int pages);
 void seedDone(int page, int pages);
 void zap(const Zap& z, uint32_t t);
 
