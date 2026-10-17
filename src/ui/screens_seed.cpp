@@ -1,4 +1,10 @@
 // Pantallas del Seed Lab. La lógica está en app/seed_lab.cpp; aquí solo se dibuja.
+//
+// Todas comparten el mismo esqueleto:
+//   - cabecera con "SEED LAB" y la pastilla roja RADIO OFF
+//   - barra de 4 pasos (método, palabras, aleatoriedad, semilla)
+//   - abajo, los botones como teclas: [PEER] next  [MODE] go ...
+// La moneda y el dado son pixel art, como los personajes.
 #include "screens.h"
 #include "screen_parts.h"
 #include "display.h"
@@ -8,134 +14,270 @@ namespace screens {
 
 static const int CX = SCREEN_W / 2;
 
-static void footer(const char* line1, const char* line2) {
-  display::text(line1, CX, 286, Font::Body, ink::Dim, Align::Center);
-  display::text(line2, CX, 302, Font::Body, ink::Dim, Align::Center);
+namespace pal {
+  constexpr uint16_t Gold      = rgb(0xF5C542);
+  constexpr uint16_t GoldLight = rgb(0xFFE38A);
+  constexpr uint16_t GoldDark  = rgb(0xB8860B);
+  constexpr uint16_t GoldEdge  = rgb(0x7A5600);
+  constexpr uint16_t Outline   = rgb(0x07080C);
+  constexpr uint16_t Brown     = rgb(0x5A3A00);
+  constexpr uint16_t DieFace   = rgb(0xF2F3F6);
+  constexpr uint16_t DieShade  = rgb(0xAEB5C2);
+  constexpr uint16_t DiePip    = rgb(0x1B1F2A);
+  constexpr uint16_t SelBg     = rgb(0x2B1C08);
+  constexpr uint16_t RadioOff  = rgb(0xE5484D);
 }
 
-static void pageHeader(const char* title, int page, int pages) {
-  header(String(title) + " " + page + "/" + pages, ink::Ok);
+// ============================================================ piezas comunes
+
+// Cabecera del Seed Lab: título y, a la derecha, la pastilla RADIO OFF
+static void seedHeader(const String& title) {
+  display::rect(0, 0, SCREEN_W, 17, ink::Card);
+  display::rect(0, 17, SCREEN_W, 1, ink::Line);
+  display::text(title, 6, 1, Font::Body, ink::Orange);
+  const int w = display::textWidth("RADIO OFF", Font::Label) + 10;
+  display::roundRect(SCREEN_W - 6 - w, 3, w, 12, pal::RadioOff);
+  display::text("RADIO OFF", SCREEN_W - 6 - w / 2, 5, Font::Label, ink::White, Align::Center);
 }
 
-// Un dado con sus puntos (el mismo dibujo que el Seeder)
-static void die(int x, int y, int s, uint8_t value, uint16_t color) {
-  static const uint16_t FACE[6] = {0x010, 0x101, 0x111, 0x145, 0x155, 0x16D};
+// Los cuatro pasos: el actual en naranja, los hechos en naranja apagado
+static void steps(int current, const char* name) {
+  static const int N = 4, GAP = 3;
+  const int w = (SCREEN_W - 12 - GAP * (N - 1)) / N;
+  for (int i = 0; i < N; i++) {
+    const uint16_t c = i + 1 == current ? ink::Orange : i + 1 < current ? rgb(0x6A4312) : ink::Line;
+    display::rect(6 + i * (w + GAP), 22, w, 3, c);
+  }
+  display::text(String("STEP ") + current + "/4 - " + name, 6, 29, Font::Label, ink::Dim);
+}
+
+// Una tecla con su acción al lado: [PEER] next. Devuelve el ancho.
+static int keyWidth(const char* key, const char* action) {
+  return display::textWidth(key, Font::Label) + 8 + 4 + display::textWidth(action, Font::Label);
+}
+
+static void key(int x, int y, const char* keyName, const char* action) {
+  const int kw = display::textWidth(keyName, Font::Label) + 8;
+  display::roundRect(x, y, kw, 12, ink::Soft);
+  display::rect(x + 1, y + 10, kw - 2, 2, ink::Dim);                  // el canto de la tecla
+  display::text(keyName, x + kw / 2, y + 2, Font::Label, ink::Bg, Align::Center);
+  display::text(action, x + kw + 4, y + 2, Font::Label, ink::Soft);
+}
+
+// Las teclas centradas. Si no caben en una fila, la última baja a una segunda fila.
+static void keyRow(int y, const char* const* ks, const char* const* as, int n) {
+  int total = -8;
+  for (int i = 0; i < n; i++) total += keyWidth(ks[i], as[i]) + 8;
+  int x = CX - total / 2;
+  for (int i = 0; i < n; i++) {
+    key(x, y, ks[i], as[i]);
+    x += keyWidth(ks[i], as[i]) + 8;
+  }
+}
+
+static void keys(int y, const char* k1, const char* a1, const char* k2 = nullptr, const char* a2 = nullptr,
+                 const char* k3 = nullptr, const char* a3 = nullptr) {
+  const char* ks[] = {k1, k2, k3};
+  const char* as[] = {a1, a2, a3};
+  int n = 0, total = -8;
+  while (n < 3 && ks[n]) { total += keyWidth(ks[n], as[n]) + 8; n++; }
+  if (total <= SCREEN_W - 8 || n == 1) {
+    keyRow(y, ks, as, n);
+  } else {
+    keyRow(y - 16, ks, as, n - 1);
+    keyRow(y, ks + n - 1, as + n - 1, 1);
+  }
+}
+
+// Una tarjeta de opción: con borde naranja si está elegida
+static void optionCard(int x, int y, int w, int h, bool selected) {
+  display::roundRect(x, y, w, h, selected ? ink::Orange : ink::Line);
+  display::roundRect(x + 2, y + 2, w - 4, h - 4, selected ? pal::SelBg : ink::Card);
+}
+
+// ============================================================ pixel art
+
+// Una "celda" del pixel art
+static void cell(int x0, int y0, int s, int i, int j, uint16_t c) { display::rect(x0 + i * s, y0 + j * s, s, s, c); }
+
+// Moneda de 17 x 17 celdas. Cara (1) con la ₿; cruz (0) con un 0.
+static void pixelCoin(int cx, int y, int s, bool heads) {
+  static const char* const B_GLYPH[] = {
+    ".#.#..",
+    "#####.",
+    ".#..##",
+    ".#..##",
+    ".####.",
+    ".#..##",
+    ".#..##",
+    "#####.",
+    ".#.#..",
+  };
+  static const char* const ZERO_GLYPH[] = {
+    ".###.",
+    "##.##",
+    "##.##",
+    "##.##",
+    "##.##",
+    "##.##",
+    ".###.",
+  };
+  const int N = 17, x0 = cx - N * s / 2;
+  for (int j = 0; j < N; j++) {
+    for (int i = 0; i < N; i++) {
+      const float dx = i - 8, dy = j - 8, d = sqrtf(dx * dx + dy * dy);
+      if (d > 8.4f) continue;
+      uint16_t c;
+      if (d > 7.5f)      c = pal::Outline;                                   // contorno
+      else if (d > 6.3f) c = dx + dy < 0 ? pal::GoldLight : pal::GoldEdge;   // canto: luz arriba a la izquierda
+      else if (d > 5.4f) c = pal::GoldDark;                                  // surco del canto
+      else               c = dx + dy < -5 ? pal::GoldLight : pal::Gold;      // cara, con un brillo
+      cell(x0, y, s, i, j, c);
+    }
+  }
+  // El dibujo del centro
+  if (heads) {
+    for (int j = 0; j < 9; j++)
+      for (int i = 0; B_GLYPH[j][i]; i++)
+        if (B_GLYPH[j][i] == '#') cell(x0, y, s, 6 + i, 4 + j, pal::Brown);
+  } else {
+    for (int j = 0; j < 7; j++)
+      for (int i = 0; ZERO_GLYPH[j][i]; i++)
+        if (ZERO_GLYPH[j][i] == '#') cell(x0, y, s, 6 + i, 5 + j, pal::Brown);
+  }
+}
+
+// Dado de 16 x 16 celdas, con luz arriba y sombra a la derecha y abajo
+static void pixelDie(int x0, int y, int s, uint8_t value) {
+  static const uint16_t FACE[6] = {0x010, 0x101, 0x111, 0x145, 0x155, 0x16D};   // 3x3: qué puntos van
+  const int N = 16;
+  for (int j = 0; j < N; j++) {
+    for (int i = 0; i < N; i++) {
+      const bool corner = (i < 2 || i > 13) && (j < 2 || j > 13) && !((i == 1 || i == 14) && (j == 1 || j == 14));
+      if ((i == 0 || i == 15) && (j == 0 || j == 15)) continue;          // esquinas redondeadas
+      if (corner) { cell(x0, y, s, i, j, pal::Outline); continue; }
+      uint16_t c = pal::DieFace;
+      if (i == 0 || j == 0 || i == 15 || j == 15) c = pal::Outline;
+      else if (i >= 13 || j >= 13) c = pal::DieShade;                   // sombra
+      cell(x0, y, s, i, j, c);
+    }
+  }
   if (value < 1 || value > 6) return;
-  TFT_eSprite& c = display::canvas();
-  const int r = max(2, s / 8), pip = max(1, s / 10);
-  c.fillRoundRect(x, y, s, s, r, ink::Bg);
-  c.drawRoundRect(x, y, s, s, r, color);
-  if (s >= 32) c.drawRoundRect(x + 1, y + 1, s - 2, s - 2, r - 1, color);
   const uint16_t face = FACE[value - 1];
-  for (int i = 0; i < 9; i++)
-    if (face & (1 << i)) c.fillCircle(x + s * (22 + 28 * (i % 3)) / 100, y + s * (22 + 28 * (i / 3)) / 100, pip, color);
+  static const int POS[3] = {3, 7, 10};
+  for (int k = 0; k < 9; k++)
+    if (face & (1 << k))
+      for (int dj = 0; dj < 2; dj++)
+        for (int di = 0; di < 2; di++) cell(x0, y, s, POS[k % 3] + di, POS[k / 3] + dj, pal::DiePip);
 }
 
-// Una moneda: círculo dorado con una B
-static void coin(int cx, int cy, int r) {
-  TFT_eSprite& c = display::canvas();
-  c.fillCircle(cx, cy, r, ink::Gold);
-  c.drawCircle(cx, cy, r - 3, rgb(0xB8860B));
-  display::text("B", cx + 1, cy - 7, Font::LabelBig, rgb(0x7A5A00), Align::Center);
-}
-
-// ============================================================ menú y palabras
+// ============================================================ paso 1: método
 
 void seedMenu(bool coinSelected) {
-  header("SEED LAB", ink::Red);
-  display::roundRect(6, 22, 158, 36, rgb(0x2A1416));
-  display::text("Radio off", 14, 24, Font::Body, ink::Red);
-  display::text("Offline, nothing is sent", 14, 40, Font::Body, rgb(0xE6A5A5));
+  seedHeader("SEED LAB");
+  steps(1, "METHOD");
 
-  // Las dos formas de hacer entropía
+  // Dos tarjetas grandes, una al lado de la otra
   for (int i = 0; i < 2; i++) {
-    const bool on = (i == 1) == coinSelected;
-    const int y = 68 + i * 62;
-    display::roundRect(6, y, 158, 56, on ? rgb(0x2B1C08) : ink::Card);
-    if (on) display::rect(6, y + 2, 3, 52, ink::Orange);
-    if (i == 0) die(16, y + 10, 36, 5, on ? ink::Orange : ink::Soft);
-    else        coin(34, y + 28, 18);
-    display::text(i == 0 ? "Dice" : "Coin", 62, y + 6, Font::Title, on ? ink::Orange : ink::Fg);
-    display::text(i == 0 ? "50 or 99 rolls" : "128/256 flips", 62, y + 34, Font::Body, ink::Dim);
+    const bool coin = i == 1, on = coin == coinSelected;
+    const int x = 6 + i * 82, w = 76, cx = x + w / 2;
+    optionCard(x, 42, w, 132, on);
+    if (coin) pixelCoin(cx, 52, 4, true);
+    else      pixelDie(cx - 32, 54, 4, 5);
+    display::text(coin ? "Coin" : "Dice", cx, 126, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
+    display::text(coin ? "128 OR 256" : "50 OR 99", cx, 154, Font::Label, ink::Dim, Align::Center);
+    display::text(coin ? "FLIPS" : "ROLLS", cx, 163, Font::Label, ink::Dim, Align::Center);
   }
 
-  centeredLines("Learn how a Bitcoin seed is born, step by step.", 200, 150, 3, 16, ink::Soft);
-  footer("PEER next - MODE go", "SEED exit");
+  centeredLines("You make the randomness. The badge turns it into a Bitcoin seed.", 186, 154, 4, 16, ink::Soft);
+  keys(300, "PEER", "next", "MODE", "go", "SEED", "exit");
 }
+
+// ============================================================ paso 2: palabras
 
 void seedWords(uint8_t nWords, bool coin) {
-  header("SEED LAB", ink::Red);
-  display::text("How many words?", CX, 26, Font::Body, ink::Soft, Align::Center);
+  seedHeader("SEED LAB");
+  steps(2, "WORDS");
+  display::text("How many words?", CX, 44, Font::Body, ink::Soft, Align::Center);
 
   for (int i = 0; i < 2; i++) {
-    const bool on = (i == 0) == (nWords == 12);
-    const int x = 14 + i * 76;
-    display::roundRect(x, 50, 66, 60, on ? ink::Orange : ink::Card);
-    display::roundRect(x + 2, 52, 62, 56, on ? rgb(0x2B1C08) : ink::Card);
-    display::text(i == 0 ? "12" : "24", x + 33, 60, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
-    display::text("WORDS", x + 33, 92, Font::Label, ink::Dim, Align::Center);
+    const bool twelve = i == 0, on = twelve == (nWords == 12);
+    const int x = 6 + i * 82, w = 76, cx = x + w / 2;
+    optionCard(x, 66, w, 90, on);
+    display::text(twelve ? "12" : "24", cx, 76, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
+    display::text("WORDS", cx, 106, Font::Label, ink::Dim, Align::Center);
+    display::text(twelve ? "128 BITS" : "256 BITS", cx, 128, Font::Label, on ? ink::Gold : ink::Dim, Align::Center);
+    display::text(coin ? (twelve ? "128 FLIPS" : "256 FLIPS") : (twelve ? "50 ROLLS" : "99 ROLLS"),
+                  cx, 140, Font::Label, ink::Dim, Align::Center);
   }
 
-  if (coin) {
-    centeredLines("12 words need 128 coin flips. 24 words need 256.", 128, 150, 3, 16, ink::Soft);
-    centeredLines("Every flip is one bit: heads 1, tails 0.", 196, 150, 3, 16, ink::Dim);
-  } else {
-    centeredLines("12 words need 50 dice rolls. 24 words need 99.", 128, 150, 3, 16, ink::Soft);
-    centeredLines("Every roll gives about 2.6 bits of randomness.", 196, 150, 3, 16, ink::Dim);
-  }
-  footer("PEER change - MODE start", "SEED back");
+  centeredLines(coin ? "Every flip is one bit: heads 1, tails 0." : "Every roll gives about 2.6 bits.",
+                170, 154, 2, 16, ink::Soft);
+  centeredLines("12 words is already plenty. 24 is for the extra careful.", 212, 154, 3, 16, ink::Dim);
+  keys(300, "PEER", "change", "MODE", "start", "SEED", "back");
 }
 
-// ============================================================ captura
+// ============================================================ paso 3: aleatoriedad
 
 void seedCoin(uint16_t done, uint16_t total, const uint8_t* entropy) {
-  header("FLIP A COIN", ink::Gold);
-  display::text("Toss a real coin", CX, 22, Font::Body, ink::Soft, Align::Center);
-  coin(36, 60, 15);
-  display::text("Heads = PEER", 60, 44, Font::Body, ink::Fg);
-  display::text("Tails = MODE", 60, 62, Font::Body, ink::Fg);
-  display::text(String(done) + " / " + total, CX, 86, Font::Title, ink::Gold, Align::Center);
+  seedHeader("FLIP A COIN");
+  steps(3, "RANDOMNESS");
 
-  // Rejilla con todos los bits: naranja = 1, gris = 0, oscuro = por tirar
+  // La moneda enseña la última tirada (cara si aún no hay ninguna)
+  const bool lastHeads = done == 0 || ((entropy[(done - 1) / 8] >> (7 - (done - 1) % 8)) & 1);
+  pixelCoin(CX, 40, 3, lastHeads);
+  keys(118, "PEER", "heads = 1", "MODE", "tails = 0");     // no caben en una fila: salen en dos (102 y 118)
+  display::text(String(done) + " / " + total, CX, 136, Font::Title, ink::Gold, Align::Center);
+
+  // Todos los bits: naranja = 1, gris = 0, oscuro = por tirar. Un hueco cada 8 (un byte).
   for (int i = 0; i < (int)total; i++) {
-    const int x = 21 + (i % 16) * 8, y = 120 + (i / 16) * 8;
+    const int col = i % 16, row = i / 16;
+    const int x = 19 + col * 8 + (col >= 8 ? 2 : 0), y = 170 + row * 7;
     uint16_t c = ink::Line;
     if (i < done) c = (entropy[i / 8] >> (7 - i % 8)) & 1 ? ink::Orange : ink::Soft;
-    display::rect(x, y, 7, 7, c);
+    display::rect(x, y, 6, 5, c);
   }
-  footer("Every flip is one bit", "Hold SEED to quit");
+  keys(300, "SEED", "hold to quit");
 }
 
 void seedDice(uint8_t done, uint8_t total, uint8_t value, const uint8_t* lastRolls) {
-  header("ROLL A DIE", ink::Gold);
-  display::text("Roll a real die and", CX, 22, Font::Body, ink::Soft, Align::Center);
-  display::text("mark what you got", CX, 38, Font::Body, ink::Soft, Align::Center);
+  seedHeader("ROLL A DIE");
+  steps(3, "RANDOMNESS");
 
-  die(CX - 40, 62, 80, value, ink::Fg);
-  display::text("PEER change - MODE save", CX, 150, Font::Body, ink::Dim, Align::Center);
-
-  display::text(String(done) + " / " + total, CX, 174, Font::Title, ink::Gold, Align::Center);
-  display::rect(14, 208, 142, 5, ink::Line);
-  display::rect(14, 208, 142 * done / total, 5, ink::Orange);
+  pixelDie(CX - 40, 42, 5, value);
+  keys(130, "PEER", "change", "MODE", "save");
+  display::text(String(done) + " / " + total, CX, 150, Font::Title, ink::Gold, Align::Center);
+  display::rect(14, 184, 142, 5, ink::Line);
+  display::rect(14, 184, 142 * done / total, 5, ink::Orange);
 
   if (done > 0) {
-    display::text("LAST ROLLS", CX, 224, Font::Label, ink::Dim, Align::Center);
-    for (int i = 0; i < 3; i++) if (lastRolls[i]) die(CX - 46 + i * 32, 238, 28, lastRolls[i], ink::Soft);
+    display::text("LAST ROLLS", CX, 204, Font::Label, ink::Dim, Align::Center);
+    for (int i = 0; i < 3; i++) if (lastRolls[i]) pixelDie(CX - 54 + i * 38, 218, 2, lastRolls[i]);
   }
-  display::text("Hold SEED to quit", CX, 302, Font::Body, ink::Dim, Align::Center);
+  keys(300, "SEED", "hold to quit");
 }
 
 void seedGenerating() {
-  header("SEED LAB", ink::Red);
-  display::text("Turning your", CX, 120, Font::Title, ink::Orange, Align::Center);
-  display::text("bits into words", CX, 148, Font::Title, ink::Orange, Align::Center);
-  display::text("BIP39 - one moment", CX, 190, Font::Body, ink::Dim, Align::Center);
+  seedHeader("SEED LAB");
+  steps(4, "SEED");
+  pixelCoin(CX, 80, 4, true);
+  display::text("Turning your bits", CX, 166, Font::Body, ink::Orange, Align::Center);
+  display::text("into words...", CX, 184, Font::Body, ink::Orange, Align::Center);
+  display::text("BIP39", CX, 214, Font::Label, ink::Dim, Align::Center);
 }
 
-// ============================================================ resultado
+// ============================================================ paso 4: la semilla
+
+static void resultHeader(const char* name, int page, int pages) {
+  seedHeader("YOUR SEED");
+  steps(4, name);
+  // Puntitos de página a la derecha de la barra de pasos
+  for (int i = 0; i < pages; i++)
+    display::roundRect(SCREEN_W - 6 - (pages - i) * 8, 29, 6, 6, i + 1 == page ? ink::Orange : ink::Line);
+}
 
 void seedMnemonic(const String& mnemonic, int from, int nWords, int page, int pages) {
-  pageHeader("YOUR WORDS", page, pages);
+  resultHeader("WORDS", page, pages);
 
   // Las palabras van separadas por espacios: nos saltamos las `from` primeras
   int start = 0;
@@ -143,51 +285,70 @@ void seedMnemonic(const String& mnemonic, int from, int nWords, int page, int pa
   for (int i = 0; i < 12 && from + i < nWords; i++) {
     int end = mnemonic.indexOf(' ', start);
     if (end < 0) end = mnemonic.length();
-    const int y = 24 + i * 21;
-    display::text(String(from + i + 1) + ".", 40, y, Font::Body, ink::Dim, Align::Right);
-    display::text(mnemonic.substring(start, end), 48, y, Font::Body, ink::Fg);
+    const int y = 42 + i * 20;
+    if (i % 2 == 0) display::roundRect(6, y - 1, 158, 19, ink::Card);
+    display::text(String(from + i + 1), 32, y + 1, Font::Body, ink::Dim, Align::Right);
+    display::text(mnemonic.substring(start, end), 42, y + 1, Font::Body, ink::Fg);
     start = end + 1;
   }
-  footer("PEER next - MODE back", "Write them down");
+  keys(296, "PEER", "next", "MODE", "back");
 }
 
 void seedAddress(const String& address, int page, int pages) {
-  pageHeader("ADDRESS", page, pages);
-  display::text("Your first address", CX, 22, Font::Body, ink::Soft, Align::Center);
-  const int side = display::qr(address, CX, 42, 140);
-  centeredLines(address, 48 + side, 156, 3, 16, ink::Fg);
-  display::text("m/84'/0'/0'/0/0", CX, 260, Font::Body, ink::Dim, Align::Center);
-  footer("PEER next - MODE back", "");
+  resultHeader("ADDRESS", page, pages);
+  display::text("Your first address", CX, 42, Font::Body, ink::Soft, Align::Center);
+  const int side = display::qr(address, CX, 62, 132);
+  centeredLines(address, 66 + side, 156, 3, 16, ink::Fg);
+  display::text("m/84'/0'/0'/0/0", CX, 270, Font::Label, ink::Dim, Align::Center);
+  keys(296, "PEER", "next", "MODE", "back");
 }
 
 void seedEntropy(const String& hex, bool fromDice, int page, int pages) {
-  pageHeader("ENTROPY", page, pages);
-  display::text("The bits you made:", CX, 22, Font::Body, ink::Soft, Align::Center);
+  resultHeader("ENTROPY", page, pages);
+  display::text("The bits you made", CX, 42, Font::Body, ink::Soft, Align::Center);
 
-  // En grupos de 8 letras, dos grupos por línea
-  for (unsigned i = 0, line = 0; i < hex.length(); i += 16, line++) {
+  // En grupos de 8 letras, dos grupos por línea, dentro de una tarjeta
+  const int lines = (hex.length() + 15) / 16;
+  display::roundRect(6, 62, 158, lines * 18 + 8, ink::Card);
+  for (int line = 0; line < lines; line++) {
+    const unsigned i = line * 16;
     String part = hex.substring(i, min<unsigned>(i + 8, hex.length()));
     if (i + 8 < hex.length()) part += " " + hex.substring(i + 8, min<unsigned>(i + 16, hex.length()));
-    display::text(part, CX, 44 + line * 18, Font::Body, ink::Gold, Align::Center);
+    display::text(part, CX, 66 + line * 18, Font::Body, ink::Gold, Align::Center);
   }
-  centeredLines(fromDice ? "Your rolls hashed with SHA-256, like Coldcard does. Same rolls, same words."
+  centeredLines(fromDice ? "Your rolls hashed with SHA-256, like Coldcard. Same rolls, same words."
                          : "Every coin flip is one of these bits. Same flips, same words.",
-                200, 150, 4, 16, ink::Dim);
-  footer("PEER next - MODE back", "");
+                220, 154, 4, 16, ink::Dim);
+  keys(296, "PEER", "next", "MODE", "back");
 }
 
 void seedDone(int page, int pages) {
-  pageHeader("DONE", page, pages);
-  display::text("That's how", CX, 26, Font::Title, ink::Orange, Align::Center);
-  display::text("a seed is born", CX, 54, Font::Title, ink::Orange, Align::Center);
+  resultHeader("DONE", page, pages);
 
-  display::roundRect(6, 96, 158, 124, rgb(0x2A1416));
-  centeredLines("This badge has a radio. Don't use these words for real money.", 102, 146, 4, 16, ink::Red);
-  centeredLines("For your savings, use an offline device like the Seeder.", 168, 146, 3, 16, rgb(0xE6A5A5));
+  // Un escudo con un tic: la radio no se ha encendido en ningún momento
+  static const char* const SHIELD[] = {
+    "..##########..",
+    ".############.",
+    "##############",
+    "##########.###",
+    "#########..###",
+    "###.####..####",
+    "###..##..#####",
+    "####....######",
+    ".####..######.",
+    ".############.",
+    "..##########..",
+    "...########...",
+    ".....####.....",
+  };
+  display::bitmap(SHIELD, 13, CX - 28, 44, 4, ink::Ok);
 
-  display::text("Hold SEED to wipe", CX, 236, Font::Body, ink::Fg, Align::Center);
-  display::text("everything and exit", CX, 252, Font::Body, ink::Fg, Align::Center);
-  footer("MODE back", "");
+  display::text("Radio was off", CX, 104, Font::Title, ink::Ok, Align::Center);
+  display::text("the whole time", CX, 130, Font::Title, ink::Ok, Align::Center);
+  centeredLines("Nothing left this badge. Your seed lived only in its memory.", 164, 154, 3, 16, ink::Soft);
+  centeredLines("This is a learning lab. For real savings, use the Seeder.", 216, 154, 3, 16, ink::Dim);
+  keys(282, "SEED", "hold: wipe + exit");
+  keys(300, "MODE", "back");
 }
 
 }  // namespace screens
