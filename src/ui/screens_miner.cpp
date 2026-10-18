@@ -81,10 +81,10 @@ void minerMining(const MinerView& v) {
   topRow(state, stateColor);
 
   // A la derecha del logotipo: el hashrate, con su nombre encima y los KH/S al lado
-  display::text("HASHRATE", 164, 28, Font::Label, ink::Dim, Align::Right);
+  display::text("HASHRATE", 164, 34, Font::Label, ink::Dim, Align::Right);
   const int unitW = display::textWidth("KH/S", Font::Label);
-  display::text(String(s.khs, 1), 164 - unitW - 4, 38, Font::Title, ink::Fg, Align::Right);
-  display::text("KH/S", 164, 52, Font::Label, ink::Dim, Align::Right);
+  display::text(String(s.khs, 1), 164 - unitW - 4, 46, Font::Title, ink::Fg, Align::Right);
+  display::text("KH/S", 164, 59, Font::Label, ink::Dim, Align::Right);
 
   hashGraph(v, 10, 84, 150, 38);
 
@@ -129,8 +129,8 @@ void minerBitcoin(const MinerView& v, const btcinfo::Info& info) {
   // El precio, a la derecha del logotipo (si no cabe en grande, en la letra normal)
   const String price = "$" + thousands(info.priceUsd);
   const Font priceFont = display::textWidth(price, Font::Title) <= 94 ? Font::Title : Font::Body;
-  display::text("BTC / USD", 164, 28, Font::Label, ink::Dim, Align::Right);
-  display::text(price, 164, priceFont == Font::Title ? 38 : 44, priceFont, ink::Orange, Align::Right);
+  display::text("BTC / USD", 164, 34, Font::Label, ink::Dim, Align::Right);
+  display::text(price, 164, priceFont == Font::Title ? 46 : 52, priceFont, ink::Orange, Align::Right);
 
   // Los datos, a la izquierda
   datum(82,  "BLOCK", thousands(info.height));
