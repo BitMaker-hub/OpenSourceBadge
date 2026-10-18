@@ -365,6 +365,36 @@ void handshakeMined(const Peer& other) {
   display::text("Nostr - X - Zaps", CX, 270, Font::Body, ink::Dim, Align::Center);
 }
 
+// ============================================================ PEER CERCANO
+
+void nearbyBanner(const nearby::Neighbor& n, bool alreadyPeer) {
+  const uint16_t accent = alreadyPeer ? ink::Ok : ink::Nostr;
+  display::roundRect(4, 262, 162, 44, accent);
+  display::roundRect(5, 263, 160, 42, ink::Card2);
+  display::rect(5, 265, 3, 38, accent);
+  display::rect(14, 268, 32, 32, ink::Pattern);
+  avatars::draw(n.role, 14, 268, 1);
+  display::text("NEARBY", 52, 267, Font::Label, ink::Dim);
+  display::text(display::fit(n.name, 108), 52, 276, Font::Body, ink::Fg);
+  display::text(alreadyPeer ? "ALREADY PEERS" : "PEER TO CONNECT", 52, 294, Font::Label, accent);
+}
+
+void invite(const nearby::Neighbor& from, bool alreadyPeer, uint32_t t) {
+  header("INVITE", ink::Nostr);
+  // Ondas que salen del otro, como en la búsqueda
+  for (int k = 0; k < 3; k++) {
+    const float phase = fmodf(t / 900.0f + k / 3.0f, 1.0f);
+    display::canvas().drawCircle(CX, 92, 40 + phase * 50, rgb(leds::blend(0xA78BFA, 0x0C0E13, phase * 255)));
+  }
+  avatars::card(from.role, 53, 56, 2);
+  display::name(from.name, CX, 140, 158);
+  display::chip(roleInfo(from.role).name, CX, 170, roleInfo(from.role).color);
+  centeredLines(alreadyPeer ? "Wants to say hi again" : "Wants to be your peer", 192, 154, 2, 16, ink::Soft);
+  display::roundRect(18, 236, 134, 24, ink::Nostr);
+  display::text("PEER  accept", CX, 240, Font::Body, ink::Bg, Align::Center);
+  display::text("MODE  ignore", CX, 272, Font::Body, ink::Dim, Align::Center);
+}
+
 // ============================================================ PRUEBA DE PLACA
 
 // Posición de cada LED en la placa (mm, de BTCBadge.kicad_pcb), para dibujar el mapa

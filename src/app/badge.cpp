@@ -107,6 +107,11 @@ void addPeer(const Peer& p) {
   if (!demo) storage::savePeers(peers, nPeers);
 }
 
+bool knows(const uint8_t* mac) {
+  for (int i = 0; i < nPeers; i++) if (memcmp(peers[i].mac, mac, 6) == 0) return true;
+  return false;
+}
+
 bool metRole(Role r) {
   for (int i = 0; i < nPeers; i++) if (peers[i].role == r) return true;
   return false;

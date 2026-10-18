@@ -86,6 +86,7 @@ int           peerCount();
 const Peer&   peer(int i);            // 0 = el más reciente
 void          addPeer(const Peer& p); // si ya lo conocíamos, lo actualiza
 bool          metRole(Role r);
+bool          knows(const uint8_t* mac);   // ¿ya es peer nuestro este badge?
 
 // ---- números del perfil ----
 uint32_t      blockHeight();          // cada handshake "mina" un bloque

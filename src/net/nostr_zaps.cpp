@@ -1,6 +1,6 @@
 #include "nostr_zaps.h"
 #include "bech32.h"
-#include "../app/storage.h"
+#include "radio.h"
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
@@ -15,7 +15,6 @@ static const Relay RELAYS[] = {
 };
 static const int RELAY_COUNT = sizeof(RELAYS) / sizeof(RELAYS[0]);
 
-static const uint32_t WIFI_RETRY_MS = 20000;
 static const uint32_t NAME_WAIT_MS  = 2000;    // cuánto esperamos a saber el nombre de quien paga
 
 // Lo que la tarea le pasa al loop principal (sin String: va por una cola de FreeRTOS)
@@ -25,13 +24,11 @@ struct ZapMessage {
   char message[120];
 };
 
-// ---- configuración (la escribe reload() con la tarea en pausa) ----
-static String wifiSsid, wifiPassword, myPubkeyHex;
+// ---- configuración ----
+static String myPubkeyHex;            // a quién escuchamos, en hex
 
 // ---- estado compartido entre la tarea y el loop principal ----
 static QueueHandle_t   zaps = nullptr;
-static volatile bool   paused = true;          // arrancamos parados hasta que begin() termine
-static volatile bool   radioOff = true;        // la tarea confirma que ha soltado la radio
 static volatile Status state = Status::NotConfigured;
 
 // ---- solo los usa la tarea ----
@@ -164,42 +161,26 @@ static void onRelayEvent(int relay, WStype_t type, uint8_t* payload, size_t leng
 
 // ============================================================ la tarea
 
-static void stopRadio() {
-  if (relaysStarted) {
-    for (auto& s : sockets) s.disconnect();
-    relaysStarted = false;
-  }
-  if (WiFi.getMode() != WIFI_OFF) {
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-  }
+static void stopRelays() {
+  if (!relaysStarted) return;
+  for (auto& s : sockets) s.disconnect();
+  relaysStarted = false;
 }
 
+// La WiFi la lleva net/radio. Aquí solo: si hay internet y npub, escuchar en los relays.
 static void task(void*) {
-  uint32_t wifiStartedAt = 0;
   for (;;) {
-    // Parados (o sin configurar): soltamos la radio y esperamos
-    if (paused || wifiSsid.isEmpty() || myPubkeyHex.isEmpty()) {
-      if (!radioOff) { stopRadio(); radioOff = true; wifiStartedAt = 0; }
-      state = paused ? Status::Paused : Status::NotConfigured;
+    if (!radio::online() || myPubkeyHex.isEmpty()) {
+      stopRelays();
+      switch (radio::status()) {
+        case radio::Status::Exclusive:  state = Status::Paused; break;
+        case radio::Status::Connecting: state = myPubkeyHex.isEmpty() ? Status::NotConfigured : Status::ConnectingWifi; break;
+        default:                        state = Status::NotConfigured; break;
+      }
       vTaskDelay(pdMS_TO_TICKS(200));
       continue;
     }
-    radioOff = false;
 
-    // 1. WiFi
-    if (WiFi.status() != WL_CONNECTED) {
-      if (wifiStartedAt == 0 || millis() - wifiStartedAt > WIFI_RETRY_MS) {
-        WiFi.mode(WIFI_STA);
-        WiFi.begin(wifiSsid.c_str(), wifiPassword.c_str());
-        wifiStartedAt = millis();
-      }
-      state = Status::ConnectingWifi;
-      vTaskDelay(pdMS_TO_TICKS(100));
-      continue;
-    }
-
-    // 2. Relays
     if (!relaysStarted) {
       for (int i = 0; i < RELAY_COUNT; i++) {
         sockets[i].beginSSL(RELAYS[i].host, 443, RELAYS[i].path);
@@ -215,7 +196,7 @@ static void task(void*) {
     }
     state = anyConnected ? Status::Listening : Status::ConnectingRelay;
 
-    // 3. Un zap que no ha recibido su nombre a tiempo sale con el npub
+    // Un zap que no ha recibido su nombre a tiempo sale con el npub
     if (waitingName && (int32_t)(millis() - pendingDeadline) > 0) {
       deliver(pending);
       waitingName = false;
@@ -226,32 +207,21 @@ static void task(void*) {
 
 // ============================================================ lo que usa el resto del firmware
 
-static void readConfig() {
-  storage::loadNetwork(wifiSsid, wifiPassword);
-  myPubkeyHex = bech32::npubToHex(badge::me().npub);
-}
-
 void begin() {
   zaps = xQueueCreate(4, sizeof(ZapMessage));
-  readConfig();
+  myPubkeyHex = bech32::npubToHex(badge::me().npub);
   xTaskCreatePinnedToCore(task, "nostr", 12288, nullptr, 1, nullptr, 0);
-  paused = false;
 }
 
+// Volver a leer el npub. Si cambia, los relays se reconectan con la suscripción nueva.
 void reload() {
-  const bool was = paused;
-  pause();
-  readConfig();
-  if (!was) resume();
+  const String hex = bech32::npubToHex(badge::me().npub);
+  if (hex == myPubkeyHex) return;
+  myPubkeyHex = "";                       // la tarea suelta los relays...
+  delay(300);
+  myPubkeyHex = hex;                      // ...y vuelve a entrar con el npub nuevo
 }
 
-void pause() {
-  paused = true;
-  const uint32_t start = millis();
-  while (!radioOff && millis() - start < 3000) delay(10);
-}
-
-void resume()     { paused = false; }
 Status status()   { return state; }
 
 bool nextZap(Zap& z) {

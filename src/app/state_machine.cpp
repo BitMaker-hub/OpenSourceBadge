@@ -10,6 +10,8 @@
 #include "../net/setup_portal.h"
 #include "../net/peer_link.h"
 #include "../net/nostr_zaps.h"
+#include "../net/nearby.h"
+#include "../net/radio.h"
 #include "seed_lab.h"
 
 namespace app {
@@ -42,6 +44,7 @@ const char* stateName(State s) {
     case State::Stats:        return "STATS";
     case State::QrFullscreen: return "QR_FULLSCREEN";
     case State::Handshake:    return "HANDSHAKE";
+    case State::Invite:       return "INVITE";
     case State::Zap:          return "ZAP";
     case State::SeedLab:      return "SEED_LAB";
     case State::Setup:        return "SETUP";
@@ -72,9 +75,31 @@ static bool homeButtons(ButtonEvent ev) {
   }
 }
 
-// En reposo, una sola brasa dando la vuelta a la B muy despacio
+// En reposo, una sola brasa dando la vuelta a la B muy despacio.
+// Si hay un badge pegado al nuestro, TX y RX laten en morado.
 static void idleLeds(uint32_t t) {
   effects::wander(groups::B, colors::Ember, 1800, t);
+  if (nearby::closest()) effects::breathe(groups::TxRx, colors::Purple, 1600, t);
+}
+
+// El aviso de "hay alguien cerca": sale 8 s cuando aparece alguien nuevo pegado
+static uint8_t  bannerMac[6];
+static uint32_t bannerSince = 0;
+
+static uint32_t bannerLastClose = 0;
+
+static void nearbyBanner() {
+  const nearby::Neighbor* n = nearby::closest();
+  if (!n) {
+    if (millis() - bannerLastClose > 10000) memset(bannerMac, 0, 6);   // se fue: si vuelve, aviso otra vez
+    return;
+  }
+  bannerLastClose = millis();
+  if (memcmp(n->mac, bannerMac, 6) != 0) {          // alguien distinto: aviso nuevo
+    memcpy(bannerMac, n->mac, 6);
+    bannerSince = millis();
+  }
+  if (millis() - bannerSince < 8000) screens::nearbyBanner(*n, badge::knows(n->mac));
 }
 
 // ============================================================ BOOT
@@ -119,6 +144,7 @@ static void profile(ButtonEvent ev, uint32_t t) {
   if (homeButtons(ev)) return;
   idleLeds(t);
   screens::profile();
+  nearbyBanner();
 }
 
 static int qrShown = 0;   // el QR que se ve ahora, para que el de pantalla completa sea el mismo
@@ -132,18 +158,21 @@ static void qrCodes(ButtonEvent ev, uint32_t t) {
 
   idleLeds(t);
   screens::qrCodes(items, n, qrShown);
+  nearbyBanner();
 }
 
 static void peers(ButtonEvent ev, uint32_t t) {
   if (homeButtons(ev)) return;
   idleLeds(t);
   screens::peers();
+  nearbyBanner();
 }
 
 static void stats(ButtonEvent ev, uint32_t t) {
   if (homeButtons(ev)) return;
   idleLeds(t);
   screens::stats();
+  nearbyBanner();
 }
 
 // ============================================================ QR A PANTALLA COMPLETA
@@ -259,6 +288,34 @@ static void handshake(ButtonEvent ev, uint32_t t) {
       screens::handshakeNotFound();
       break;
   }
+}
+
+// ============================================================ INVITE
+//
+// Otro badge ha pulsado PEER a nuestro lado y nos invita. Él ya está buscando:
+// si aceptamos, entramos en el handshake y nos encontramos.
+
+static nearby::Neighbor inviter;
+static bool             acceptingInvite = false;   // si aceptamos, no hace falta invitar de vuelta
+
+static void checkInvites() {
+  if (!isHomePage(state)) return;
+  if (nearby::takeInvite(inviter)) {
+    returnTo = state;
+    go(State::Invite);
+  }
+}
+
+static void invite(ButtonEvent ev, uint32_t t) {
+  if (ev == ButtonEvent::PeerShort) {
+    acceptingInvite = true;
+    return go(State::Handshake);
+  }
+  if (ev == ButtonEvent::ModeShort || t > 15000) return go(returnTo);
+
+  effects::trail(groups::BOutline, colors::Purple, 4, 70, t);
+  effects::alternate(groups::TxRx, colors::Purple, colors::Off, 400, t);
+  screens::invite(inviter, badge::knows(inviter.mac), t);
 }
 
 // ============================================================ ZAP
@@ -400,6 +457,8 @@ static void hardwareTest(ButtonEvent ev, uint32_t t) {
 
 void begin() {
   badge::begin();
+  radio::begin();
+  nearby::begin();
   nostrzaps::begin();
   // SEED pulsado al encender: directo a la prueba de placa
   if (digitalRead(PIN_BTN_SEED) == LOW) go(State::HardwareTest);
@@ -408,10 +467,18 @@ void begin() {
 
 static void onEnter(State s) {
   switch (s) {
-    // La radio solo hace una cosa a la vez: el handshake y el SETUP apartan a Nostr
-    case State::Handshake:    nostrzaps::pause(); startHandshake(); break;
-    case State::Setup:        nostrzaps::pause(); setupSavedAt = 0; portal::start(); break;
-    case State::SeedLab:      nostrzaps::pause(); seedlab::start(); break;   // radio apagada mientras haya semillas
+    // La radio solo hace una cosa a la vez: estos tres la piden entera (ver net/radio)
+    case State::Handshake: {
+      const nearby::Neighbor* n = nearby::closest();
+      if (n && !acceptingInvite) nearby::invite(*n);   // si hay alguien pegado, le avisamos antes de irnos
+      acceptingInvite = false;
+      nearby::stop();
+      radio::exclusive(true);
+      startHandshake();
+      break;
+    }
+    case State::Setup:   nearby::stop(); radio::exclusive(true); setupSavedAt = 0; portal::start(); break;
+    case State::SeedLab: nearby::stop(); radio::exclusive(true); seedlab::start(); break;   // radio apagada
     case State::HardwareTest: startHardwareTest(); break;
     default:                                       break;   // el resto no prepara nada
   }
@@ -419,9 +486,14 @@ static void onEnter(State s) {
 
 static void onExit(State s) {
   switch (s) {
-    case State::Handshake: peerlink::stop(); nostrzaps::resume(); break;
-    case State::Setup:     portal::stop();   nostrzaps::reload(); nostrzaps::resume(); break;   // quizá cambió la WiFi o el npub
-    case State::SeedLab:   seedlab::wipe();  nostrzaps::resume(); break;   // no queda nada en memoria
+    case State::Handshake: peerlink::stop(); radio::exclusive(false); break;
+    case State::Setup:                                             // quizá cambió la WiFi o el npub
+      portal::stop();
+      radio::reloadNetwork();
+      radio::exclusive(false);
+      nostrzaps::reload();
+      break;
+    case State::SeedLab:   seedlab::wipe();  radio::exclusive(false); break;   // no queda nada en memoria
     default:                                 break;
   }
 }
@@ -439,6 +511,7 @@ static void runState(ButtonEvent ev) {
     case State::Stats:        stats(ev, t);        break;
     case State::QrFullscreen: qrFullscreen(ev, t); break;
     case State::Handshake:    handshake(ev, t);    break;
+    case State::Invite:       invite(ev, t);       break;
     case State::Zap:          zap(ev, t);          break;
     case State::SeedLab:      seedLab(ev, t);      break;
     case State::Setup:        setupMode(ev, t);    break;
@@ -448,6 +521,7 @@ static void runState(ButtonEvent ev) {
 
 void update(ButtonEvent ev) {
   checkNostrZaps();
+  checkInvites();
   const State before = state;
   runState(ev);
   // Si el estado ha cambiado, el nuevo dibuja ya su primera imagen;

@@ -10,8 +10,8 @@
 //
 //  Los sats van a tu wallet de siempre: el badge no guarda nada, solo escucha.
 //
-//  Todo esto corre en una tarea aparte (núcleo 0), para que conectarse a la
-//  WiFi o a un relay nunca congele la pantalla.
+//  Todo esto corre en una tarea aparte (núcleo 0), para que conectarse a un
+//  relay nunca congele la pantalla. La WiFi en sí la lleva net/radio.
 // ============================================================================
 #include "../app/badge.h"
 
@@ -25,13 +25,8 @@ enum class Status : uint8_t {
   Listening,        // conectado a algún relay, esperando zaps
 };
 
-void begin();          // lee la configuración y arranca la tarea
-void reload();         // volver a leer WiFi y npub (después de guardar en badge.local)
-
-// La radio solo puede hacer una cosa a la vez: mientras el SETUP o el handshake
-// la usan, esto se aparta. pause() espera a que la WiFi esté apagada de verdad.
-void pause();
-void resume();
+void begin();          // lee el npub y arranca la tarea (la WiFi la lleva net/radio)
+void reload();         // volver a leer el npub (después de guardar en badge.local)
 
 Status status();
 

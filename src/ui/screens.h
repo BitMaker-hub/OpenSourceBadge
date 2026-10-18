@@ -11,6 +11,7 @@
 // ============================================================================
 #include "../app/badge.h"
 #include "../hardware/buttons.h"
+#include "../net/nearby.h"
 
 namespace screens {
 
@@ -50,6 +51,10 @@ void handshakeFound(const Peer& other, uint32_t t);
 void handshakeMining(const String* hashes, int count, uint8_t progress, uint32_t nonce);
 void handshakeMined(const Peer& other);
 void handshakeNotFound();
+
+// Peer cercano
+void nearbyBanner(const nearby::Neighbor& n, bool alreadyPeer);       // aviso abajo, encima de la página
+void invite(const nearby::Neighbor& from, bool alreadyPeer, uint32_t t);
 
 // Prueba de placa
 struct HardwareTestInfo {

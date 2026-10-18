@@ -61,6 +61,19 @@ El mismo `effects::trail(...)` hace la estela de un zap por la B o un barrido po
 T-Display (600 mA, compartido con el ESP32), así que ningún efecto puede pasarse. Si todos están apagados,
 corta la alimentación de los LEDs (Q1).
 
+## Peer cercano
+
+Cada badge manda por ESP-NOW un "estoy aquí" cada segundo (`net/nearby`). Con la fuerza de la señal se sabe si
+otro badge está pegado (más de -60 dBm, un palmo o dos): sale un aviso abajo ("NEARBY · Satoshi · PEER TO
+CONNECT", o "ALREADY PEERS" en verde) y TX/RX laten en morado. Al pulsar PEER con alguien pegado, al otro le llega
+una invitación (pantalla INVITE): PEER acepta y los dos entran en el handshake.
+
+Los badges conectados a una WiFi están en el canal de esa WiFi; los que no tienen WiFi saltan de canal (primero
+1, 6 y 11) hasta oír a alguien y se quedan en su canal. Probado con dos badges: se encuentran en ~5 s.
+
+La radio la reparte `net/radio`: en NORMAL hay WiFi (si está configurada) y peer cercano; el handshake, el SETUP y
+el Seed Lab la piden en EXCLUSIVO y se apaga todo lo demás.
+
 ## Zaps de Nostr
 
 En `badge.local` se pone el npub y una WiFi con internet (la del evento o el hotspot del móvil). El badge se
@@ -83,7 +96,6 @@ aprender: el badge tiene radio y para fondos de verdad hay que usar un dispositi
 
 ## Pendiente
 
-- Probar el handshake con dos badges.
 - Batería: medir consumo y apagar o atenuar pantalla y WiFi.
 - Modo NerdMiner.
 - Avisar de pagos Lightning que no vengan de Nostr (Nostr Wallet Connect).

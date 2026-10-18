@@ -23,6 +23,11 @@
 //      SEED corto  -> SEED_LAB, y SEED vuelve
 //      SEED largo  -> HARDWARE_TEST (prueba de placa)
 //    Un zap que llega -> ZAP, y vuelve solo a los 6 s
+//    Otro badge que nos invita (pulsó PEER a nuestro lado) -> INVITE:
+//      PEER acepta (-> HANDSHAKE), MODE la ignora
+//
+//  En las páginas de inicio, si hay un badge pegado al nuestro, sale un aviso
+//  abajo ("Satoshi is nearby") y TX/RX laten en morado (ver net/nearby).
 //
 //  Si al encender se tiene pulsado SEED, se arranca directamente en la prueba
 //  de placa.
@@ -37,6 +42,7 @@ enum class State : uint8_t {
   Stats,
   QrFullscreen,
   Handshake,
+  Invite,          // otro badge nos invita a hacer handshake
   Zap,
   SeedLab,
   Setup,

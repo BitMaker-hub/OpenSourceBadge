@@ -26,6 +26,8 @@
 #include "app/storage.h"
 #include "net/setup_portal.h"
 #include "net/nostr_zaps.h"
+#include "net/radio.h"
+#include "net/nearby.h"
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 
@@ -96,7 +98,7 @@ static ButtonEvent readSerialCommand() {
       ssid.trim();
       password.trim();
       storage::saveNetwork(ssid, password);
-      nostrzaps::reload();
+      radio::reloadNetwork();
       Serial.printf("WiFi guardada: %s\n", ssid.c_str());
       return ButtonEvent::None;
     }
@@ -108,6 +110,10 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("  npub:  %s\n", badge::me().npub.c_str());
       Serial.printf("  WiFi:  %s%s\n", ssid.length() ? ssid.c_str() : "(ninguna)", password.length() ? " (con contraseña)" : "");
       Serial.printf("  Nostr: %s\n", NOSTR[(int)nostrzaps::status()]);
+      static const char* const RADIO[] = {"exclusiva", "sin WiFi", "conectando", "conectada"};
+      Serial.printf("  Radio: %s, canal %u, %d badges cerca\n", RADIO[(int)radio::status()], nearby::channel(), nearby::count());
+      const nearby::Neighbor* n = nearby::closest();
+      if (n) Serial.printf("  Pegado: #%03u %s (%d dBm)\n", n->number, n->name, n->rssi);
       return ButtonEvent::None;
     }
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;
@@ -145,6 +151,7 @@ void loop() {
   if (event == ButtonEvent::None && millis() - lastFrame < FRAME_MS) return;
   lastFrame = millis();
 
+  nearby::loop();       // quién hay cerca (y si alguien nos invita)
   app::update(event);   // el estado actual pinta LEDs y pantalla en memoria
   leds::show();
   display::push();
