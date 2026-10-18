@@ -4,8 +4,11 @@
 //
 //  Envuelve lib/nerdminer (el núcleo del NerdMiner_v2) con lo que pone el
 //  badge: el pool y la dirección se guardan en la memoria (badge.local o el
-//  comando serie "G"), y si estaba minando al apagarlo, vuelve a minar al
-//  encenderlo.
+//  comando serie "G").
+//
+//  Cuándo mina lo decide la máquina de estados (app/state_machine, minerPolicy):
+//  con USB, siempre; con batería, solo mientras se mira la pantalla del NerdMiner.
+//  El usuario puede ponerlo en pausa (se guarda); si no, mina.
 //
 //  De fábrica mina sin tocar nada: al pool de NerdMiners de Bitronics y a la
 //  dirección de Bitronics (worker "nerdminerBadge"). Si el dueño pone la suya
@@ -33,9 +36,11 @@ String   address();           // la que cobra: la del dueño o, si no puso ningu
 String   ownAddress();        // la que puso el dueño ("" = ninguna)
 bool     defaultAddress();    // true si está minando para la dirección de fábrica
 
-bool start();
-void stop();
-bool enabled();               // el usuario lo ha encendido
+void run(bool on);            // arrancar o parar el núcleo (no se guarda)
+bool running();
+
+bool paused();                // el usuario lo ha puesto en pausa (se guarda)
+void setPaused(bool p);
 
 nerdminer::Stats stats();
 

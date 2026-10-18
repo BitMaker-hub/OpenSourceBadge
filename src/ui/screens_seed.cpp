@@ -26,7 +26,10 @@ namespace pal {
   constexpr uint16_t DieFace   = rgb(0xF2F3F6);
   constexpr uint16_t DieShade  = rgb(0xAEB5C2);
   constexpr uint16_t DiePip    = rgb(0x1B1F2A);
-  constexpr uint16_t SelBg     = rgb(0x2B1C08);
+  // El Seed Lab va en el verde de la Seeder: de semilla, como su logotipo
+  constexpr uint16_t Seed      = rgb(0x5CD68A);
+  constexpr uint16_t SeedDark  = rgb(0x2E6B45);
+  constexpr uint16_t SelBg     = rgb(0x0F2A1B);
   constexpr uint16_t RadioOff  = rgb(0xE5484D);
 }
 
@@ -36,7 +39,8 @@ namespace pal {
 static void seedHeader(const String& title) {
   display::rect(0, 0, SCREEN_W, 17, ink::Card);
   display::rect(0, 17, SCREEN_W, 1, ink::Line);
-  display::text(title, 6, 1, Font::Body, ink::Orange);
+  display::logo(SEED_SPROUT_MINI, 5, 1);                      // el brote de la Seeder: estás en su modo
+  display::text(title, 18, 1, Font::Body, pal::Seed);
   const int w = display::textWidth("RADIO OFF", Font::Label) + 10;
   display::roundRect(SCREEN_W - 6 - w, 3, w, 12, pal::RadioOff);
   display::text("RADIO OFF", SCREEN_W - 6 - w / 2, 5, Font::Label, ink::White, Align::Center);
@@ -47,7 +51,7 @@ static void steps(int current, const char* name) {
   static const int N = 4, GAP = 3;
   const int w = (SCREEN_W - 12 - GAP * (N - 1)) / N;
   for (int i = 0; i < N; i++) {
-    const uint16_t c = i + 1 == current ? ink::Orange : i + 1 < current ? rgb(0x6A4312) : ink::Line;
+    const uint16_t c = i + 1 == current ? pal::Seed : i + 1 < current ? pal::SeedDark : ink::Line;
     display::rect(6 + i * (w + GAP), 22, w, 3, c);
   }
   display::text(String("STEP ") + current + "/4 - " + name, 6, 29, Font::Label, ink::Dim);
@@ -93,7 +97,7 @@ static void keys(int y, const char* k1, const char* a1, const char* k2 = nullptr
 
 // Una tarjeta de opción: con borde naranja si está elegida
 static void optionCard(int x, int y, int w, int h, bool selected) {
-  display::roundRect(x, y, w, h, selected ? ink::Orange : ink::Line);
+  display::roundRect(x, y, w, h, selected ? pal::Seed : ink::Line);
   display::roundRect(x + 2, y + 2, w - 4, h - 4, selected ? pal::SelBg : ink::Card);
 }
 
@@ -219,7 +223,7 @@ void seedMenu(bool coinSelected) {
     // Dibujos a escala 3 (no 4) para que no toquen el borde de la tarjeta
     if (coin) pixelCoin(cx, 56, 3, true);
     else      pixelDie(cx - 24, 57, 3, 5);
-    display::text(coin ? "Coin" : "Dice", cx, 116, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
+    display::text(coin ? "Coin" : "Dice", cx, 116, Font::Title, on ? pal::Seed : ink::Fg, Align::Center);
     display::text(coin ? "128 OR 256" : "50 OR 99", cx, 146, Font::Label, ink::Dim, Align::Center);
     display::text(coin ? "FLIPS" : "ROLLS", cx, 156, Font::Label, ink::Dim, Align::Center);
   }
@@ -239,7 +243,7 @@ void seedWords(uint8_t nWords, bool coin) {
     const bool twelve = i == 0, on = twelve == (nWords == 12);
     const int x = 6 + i * 82, w = 76, cx = x + w / 2;
     optionCard(x, 66, w, 90, on);
-    display::text(twelve ? "12" : "24", cx, 76, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
+    display::text(twelve ? "12" : "24", cx, 76, Font::Title, on ? pal::Seed : ink::Fg, Align::Center);
     display::text("WORDS", cx, 106, Font::Label, ink::Dim, Align::Center);
     display::text(twelve ? "128 BITS" : "256 BITS", cx, 128, Font::Label, on ? ink::Gold : ink::Dim, Align::Center);
     display::text(coin ? (twelve ? "128 FLIPS" : "256 FLIPS") : (twelve ? "50 ROLLS" : "99 ROLLS"),
@@ -269,7 +273,7 @@ void seedCoin(uint16_t done, uint16_t total, const uint8_t* entropy) {
     const int col = i % 16, row = i / 16;
     const int x = 19 + col * 8 + (col >= 8 ? 2 : 0), y = 178 + row * 7;
     uint16_t c = ink::Line;
-    if (i < done) c = (entropy[i / 8] >> (7 - i % 8)) & 1 ? ink::Orange : ink::Soft;
+    if (i < done) c = (entropy[i / 8] >> (7 - i % 8)) & 1 ? pal::Seed : ink::Soft;
     display::rect(x, y, 6, 5, c);
   }
   keys(300, "SEED", "hold to quit");
@@ -283,7 +287,7 @@ void seedDice(uint8_t done, uint8_t total, uint8_t value, const uint8_t* lastRol
   keys(144, "PEER", "change", "MODE", "save");
   display::text(String(done) + " / " + total, CX, 164, Font::Title, ink::Gold, Align::Center);
   display::rect(14, 198, 142, 5, ink::Line);
-  display::rect(14, 198, 142 * done / total, 5, ink::Orange);
+  display::rect(14, 198, 142 * done / total, 5, pal::Seed);
 
   if (done > 0) {
     display::text("LAST ROLLS", CX, 218, Font::Label, ink::Dim, Align::Center);
@@ -296,8 +300,8 @@ void seedGenerating() {
   seedHeader("SEED LAB");
   steps(4, "SEED");
   pixelCoin(CX, 80, 4, true);
-  display::text("Turning your bits", CX, 166, Font::Body, ink::Orange, Align::Center);
-  display::text("into words...", CX, 184, Font::Body, ink::Orange, Align::Center);
+  display::text("Turning your bits", CX, 166, Font::Body, pal::Seed, Align::Center);
+  display::text("into words...", CX, 184, Font::Body, pal::Seed, Align::Center);
   display::text("BIP39", CX, 214, Font::Label, ink::Dim, Align::Center);
 }
 
@@ -308,7 +312,7 @@ static void resultHeader(const char* name, int page, int pages) {
   steps(4, name);
   // Puntitos de página a la derecha de la barra de pasos
   for (int i = 0; i < pages; i++)
-    display::roundRect(SCREEN_W - 6 - (pages - i) * 8, 29, 6, 6, i + 1 == page ? ink::Orange : ink::Line);
+    display::roundRect(SCREEN_W - 6 - (pages - i) * 8, 29, 6, 6, i + 1 == page ? pal::Seed : ink::Line);
 }
 
 void seedMnemonic(const String& mnemonic, int from, int nWords, int page, int pages) {

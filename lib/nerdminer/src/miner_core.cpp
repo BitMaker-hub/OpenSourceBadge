@@ -31,7 +31,7 @@ static bool          tasksStarted = false;
 
 static volatile uint32_t hashes = 0;          // se va sumando; stats() lo convierte en kH/s
 static volatile uint32_t shares = 0, valids = 0, templates = 0, lastShareAt = 0;
-static volatile uint32_t accepted = 0, rejected = 0, minedMs = 0;
+static volatile uint32_t accepted = 0, rejected = 0, minedMs = 0, lastJobAt = 0;
 static volatile double   poolDiff = 0;
 static volatile double   bestDiff = 0.0;
 static volatile bool     poolReady = false;
@@ -155,6 +155,7 @@ static void stratumTask(void*) {
               s_job_request_list_hw.clear();
             }
             templates++;
+            lastJobAt = millis();
             job_pool++;
             s_working_current_job_id = job_pool & 0xFF;
             last_job_time = mLastTXtoPool = millis();
@@ -396,6 +397,7 @@ Stats stats() {
   s.rejected = rejected;
   s.poolDiff = poolDiff;
   s.minedMs = minedMs;
+  s.lastJobAt = lastJobAt;
   return s;
 }
 

@@ -154,9 +154,9 @@ static bool capture(ButtonEvent ev, uint32_t now) {
   // La ₿ se va llenando como una barra de progreso
   const uint16_t done = source == Source::Coin ? coinBits : nRolls;
   const uint16_t total = source == Source::Coin ? bitsNeeded() : rollsNeeded();
-  effects::progress(groups::BTopToBottom, colors::Orange, done * 255 / total);
+  effects::progress(groups::BTopToBottom, colors::Green, done * 255 / total);
   if (now - lastInputAt < 150 && done > 0) {   // destello en TX (cara/tirada) o RX (cruz)
-    effects::solid(source == Source::Coin && !lastWasHeads ? groups::Rx : groups::Tx, colors::Amber);
+    effects::solid(source == Source::Coin && !lastWasHeads ? groups::Rx : groups::Tx, colors::Green);
   }
 
   if (source == Source::Coin) screens::seedCoin(coinBits, bitsNeeded(), entropy);
@@ -197,7 +197,7 @@ bool update(ButtonEvent ev, uint32_t t) {
       // Primero se dibuja "Generating" y, en la vuelta siguiente, se calcula (tarda un poco)
       static bool drawn = false;
       if (!drawn) {
-        static const Color FIRE[] = {colors::Orange, colors::Gold, colors::Amber};
+        static const Color FIRE[] = {colors::Green, colors::DarkGreen, 0x9CEBB6};   // verde Seeder
         effects::sparkle(groups::B, FIRE, 3, 6, 60, t);
         screens::seedGenerating();
         drawn = true;

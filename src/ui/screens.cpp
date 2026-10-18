@@ -16,10 +16,19 @@ namespace screens {
 static const int CX = SCREEN_W / 2;   // centro horizontal, 85
 
 // "12600" -> "12,600"
-static String thousands(uint32_t n) {
+String thousands(uint32_t n) {
   String s = String(n);
   for (int i = s.length() - 3; i > 0; i -= 3) s = s.substring(0, i) + "," + s.substring(i);
   return s;
+}
+
+// 1234567 -> "1.23M", como el NerdMiner
+String shortNumber(double v) {
+  if (v < 1) return String(v, v < 0.001 ? 6 : 4);                 // las pequeñas, con decimales
+  static const char* const SUFFIX[] = {"", "K", "M", "G", "T", "P", "E", "Z"};
+  int k = 0;
+  while (v >= 1000 && k < 7) { v /= 1000; k++; }
+  return String(v, v < 10 ? 2 : v < 100 ? 1 : 0) + SUFFIX[k];
 }
 
 // Cabecera de todas las pantallas. El punto dice cómo va Nostr:
@@ -371,63 +380,6 @@ void handshakeMined(const Peer& other) {
   display::text("+1 peer", CX, 224, Font::Title, ink::Orange, Align::Center);
   display::text("Contact saved", CX, 254, Font::Body, ink::Dim, Align::Center);
   display::text("Nostr - X - Zaps", CX, 270, Font::Body, ink::Dim, Align::Center);
-}
-
-// ============================================================ NERDMINER
-
-// 1234567 -> "1.23M", como el NerdMiner
-static String shortNumber(double v) {
-  if (v < 1) return String(v, v < 0.001 ? 6 : 4);                 // las pequeñas, con decimales
-  static const char* const SUFFIX[] = {"", "K", "M", "G", "T", "P"};
-  int k = 0;
-  while (v >= 1000 && k < 5) { v /= 1000; k++; }
-  return String(v, v < 10 ? 2 : v < 100 ? 1 : 0) + SUFFIX[k];
-}
-
-void miner(const nerdminer::Stats& s, const float* history, int historyNext, bool online) {
-  header("NERDMINER", ink::Orange);
-
-  // Estado en una pastilla
-  const char* state = !s.running ? "STOPPED" : !online ? "NO INTERNET" : s.connected ? "MINING" : "CONNECTING";
-  const uint16_t stateColor = !s.running ? ink::Dim : !online ? ink::Red : s.connected ? ink::Ok : ink::Gold;
-  const int pw = display::textWidth(state, Font::Label) + 12;
-  display::roundRect(CX - pw / 2, 24, pw, 13, stateColor);
-  display::text(state, CX, 27, Font::Label, ink::Bg, Align::Center);
-
-  // Hashrate grande y su gráfica
-  display::text(String(s.khs, 1), CX, 46, Font::Title, ink::Fg, Align::Center);
-  display::text("KH/S", CX, 74, Font::Label, ink::Dim, Align::Center);
-  float top = 1;
-  for (int i = 0; i < 24; i++) top = max(top, history[i]);
-  for (int i = 0; i < 24; i++) {
-    const float v = history[(historyNext + i) % 24];
-    const int h = (int)(28 * v / top);
-    display::rect(14 + i * 6, 116 - h, 4, h, i == 23 ? ink::Orange : rgb(0x6A4312));
-  }
-
-  // Números: los shares que ha aceptado el pool (los mismos que enseña su web),
-  // la mejor dificultad del badge frente a la que pide el pool, y cuánto lleva
-  const uint32_t min = s.minedMs / 60000;
-  const String time = min >= 60 ? String(min / 60) + "h " + String(min % 60) + "m" : String(min) + " min";
-  display::roundRect(6, 122, 158, 112, ink::Card);
-  display::text("Shares", 14, 126, Font::Body, ink::Dim);
-  display::text(String(s.accepted), 158, 126, Font::Body, ink::Fg, Align::Right);
-  display::text("Best diff", 14, 144, Font::Body, ink::Dim);
-  display::text(shortNumber(s.bestDiff), 158, 144, Font::Body, ink::Gold, Align::Right);
-  display::text("Pool diff", 14, 162, Font::Body, ink::Dim);
-  display::text(s.poolDiff > 0 ? shortNumber(s.poolDiff) : String("--"), 158, 162, Font::Body, ink::Fg, Align::Right);
-  display::text("Time", 14, 180, Font::Body, ink::Dim);
-  display::text(time, 158, 180, Font::Body, ink::Fg, Align::Right);
-  display::text("Blocks", 14, 198, Font::Body, ink::Dim);
-  display::text(String(s.blocks), 158, 198, Font::Body, s.blocks ? ink::Ok : ink::Fg, Align::Right);
-  display::text(display::fit(miner::pool(), 150, Font::Label), CX, 220, Font::Label, ink::Dim, Align::Center);
-
-  // A quién va el premio, sin engañar: de fábrica es para Bitronics
-  if (miner::defaultAddress())
-    centeredLines("A block now goes to Bitronics. Set your address in badge.local.", 242, 154, 3, 16, ink::Soft);
-  else
-    centeredLines("Solo mining: a lottery. If you find a block, it is all yours.", 242, 154, 3, 16, ink::Soft);
-  display::text(s.running ? "PEER stop - MODE back" : "PEER start - MODE back", CX, 300, Font::Body, ink::Dim, Align::Center);
 }
 
 // ============================================================ WITHDRAW

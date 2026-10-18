@@ -14,6 +14,7 @@
 #include "../net/radio.h"
 #include "../net/lnbits.h"
 #include "../net/miner.h"
+#include "../net/bitcoin_info.h"
 #include "seed_lab.h"
 
 namespace app {
@@ -83,11 +84,16 @@ static bool homeButtons(ButtonEvent ev) {
 // En reposo, una sola brasa dando la vuelta a la B muy despacio.
 // Si hay un badge pegado al nuestro, TX y RX laten en morado.
 static void idleLeds(uint32_t t) {
-  // Minando: una estela lenta por la B y, con cada share, un destello dorado
-  if (miner::enabled()) {
+  // Minando: una estela lenta por el contorno de la B. Con cada trabajo nuevo
+  // (cada medio minuto o así), una vuelta rápida de 4 LEDs en azul; con cada
+  // share aceptado, un parpadeo verde de RX. Nunca la B entera de golpe: con
+  // el chip minando a tope, el salto de consumo hace pitar la fuente.
+  if (miner::running()) {
     const nerdminer::Stats s = miner::stats();
-    if (s.lastShareAt && millis() - s.lastShareAt < 1500) effects::solid(groups::B, colors::Gold);
+    const uint32_t sinceJob = millis() - s.lastJobAt;
+    if (s.lastJobAt && sinceJob < 1200) effects::trail(groups::BOutline, colors::Blue, 4, 50, sinceJob);
     else effects::trail(groups::BOutline, colors::Ember, 3, 140, t);
+    if (s.lastShareAt && millis() - s.lastShareAt < 400) effects::solid(groups::Rx, colors::Green);
   } else {
     effects::wander(groups::B, colors::Ember, 1800, t);
   }
@@ -192,7 +198,7 @@ static void stats(ButtonEvent ev, uint32_t t) {
 // ============================================================ QR A PANTALLA COMPLETA
 
 static void qrFullscreen(ButtonEvent ev, uint32_t t) {
-  if (ev == ButtonEvent::PeerShort || ev == ButtonEvent::PeerLong || ev == ButtonEvent::ModeShort)
+  if (ev == ButtonEvent::PeerShort || ev == ButtonEvent::PeerLong || ev == ButtonEvent::ModeShort || ev == ButtonEvent::SeedShort)
     return go(returnTo);
 
   QrItem items[badge::MAX_QRS];
@@ -230,7 +236,7 @@ static void startHandshake() {
 }
 
 static void handshake(ButtonEvent ev, uint32_t t) {
-  if (ev == ButtonEvent::ModeShort) return go(returnTo);   // cancelar
+  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::SeedShort) return go(returnTo);   // cancelar (SEED = atrás, siempre)
 
   peerlink::loop();
   const peerlink::Status radio = peerlink::status();
@@ -325,7 +331,7 @@ static void invite(ButtonEvent ev, uint32_t t) {
     acceptingInvite = true;
     return go(State::Handshake);
   }
-  if (ev == ButtonEvent::ModeShort || t > 15000) return go(returnTo);
+  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::SeedShort || t > 15000) return go(returnTo);
 
   effects::trail(groups::BOutline, colors::Purple, 4, 70, t);
   effects::alternate(groups::TxRx, colors::Purple, colors::Off, 400, t);
@@ -385,7 +391,7 @@ static void zap(ButtonEvent ev, uint32_t t) {
 static bool withdrawShowQr = false;
 
 static void withdraw(ButtonEvent ev, uint32_t t) {
-  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::ModeLong || t > 60000) return go(State::Stats);
+  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::ModeLong || ev == ButtonEvent::SeedShort || t > 60000) return go(State::Stats);
   if (ev == ButtonEvent::PeerShort) withdrawShowQr = !withdrawShowQr;
 
   effects::breathe(groups::B, colors::Gold, 2400, t);
@@ -405,24 +411,38 @@ static void lab(ButtonEvent ev, uint32_t t) {
   if (ev == ButtonEvent::ModeShort) return go(labSelected == 0 ? State::SeedLab : State::Miner);
 
   idleLeds(t);
-  screens::lab(labSelected, miner::enabled());
+  screens::lab(labSelected, miner::running() && miner::stats().connected);   // "minando" solo si tiene trabajo del pool
 }
 
 // ============================================================ MINER
 //
-// La pantalla del NerdMiner. PEER enciende o apaga el minero; MODE o SEED
-// vuelven. Al salir, si está encendido, sigue minando en segundo plano.
+// El NerdMiner, en dos páginas: el minero y la red Bitcoin. PEER o MODE cambian
+// de página, SEED vuelve. PEER largo lo pone en pausa (o lo quita).
+// Cuándo mina no lo decide esta pantalla sino minerPolicy(), más abajo.
 
-static float minerHistory[24];      // kH/s de los últimos ~48 s, para la gráfica
-static int   minerHistoryNext = 0;
+static float    minerHistory[24];      // kH/s de los últimos ~48 s, para la gráfica
+static int      minerHistoryNext = 0;
 static uint32_t minerSampledAt = 0;
+static int      minerPage = 0;         // 0 = minando, 1 = Bitcoin
+
+// Los avisos de abajo: "New job received" y "Share accepted!"
+static uint32_t seenJobs = 0, seenShares = 0;
+static uint32_t toastAt = 0;
+static String   toastText;
+static uint16_t toastColor = 0;
+
+static void minerToasts(const nerdminer::Stats& s) {
+  if (s.accepted > seenShares)     { toastText = "Share accepted!";  toastColor = ink::Ok;        toastAt = millis(); }
+  else if (s.templates > seenJobs) { toastText = "New job received"; toastColor = rgb(0x38BDF8); toastAt = millis(); }
+  seenShares = s.accepted;
+  seenJobs = s.templates;
+  if (millis() - toastAt > 2500) toastText = "";
+}
 
 static void miner(ButtonEvent ev, uint32_t t) {
-  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::SeedShort || ev == ButtonEvent::SeedLong) return go(returnTo);
-  if (ev == ButtonEvent::PeerShort) {
-    if (miner::enabled()) miner::stop();
-    else miner::start();
-  }
+  if (ev == ButtonEvent::SeedShort || ev == ButtonEvent::SeedLong) return go(returnTo);
+  if (ev == ButtonEvent::PeerShort || ev == ButtonEvent::ModeShort) minerPage = 1 - minerPage;
+  if (ev == ButtonEvent::PeerLong) miner::setPaused(!miner::paused());
 
   const nerdminer::Stats s = miner::stats();
   if (millis() - minerSampledAt > 2000) {
@@ -430,9 +450,21 @@ static void miner(ButtonEvent ev, uint32_t t) {
     minerHistoryNext = (minerHistoryNext + 1) % 24;
     minerSampledAt = millis();
   }
+  minerToasts(s);
   idleLeds(t);
-  if (s.running && s.connected) effects::blink(groups::Tx, colors::Orange, 600, t);
-  screens::miner(s, minerHistory, minerHistoryNext, radio::online());
+
+  screens::MinerView v{s, minerHistory, minerHistoryNext, radio::online(), miner::paused(), toastText, toastColor};
+  if (minerPage == 0) screens::minerMining(v);
+  else                screens::minerBitcoin(v, btcinfo::get());
+}
+
+// Cuándo mina: con USB, siempre; con batería, solo mirando su pantalla (gasta
+// mucho). Nunca si el usuario lo ha puesto en pausa.
+static void minerPolicy() {
+  const bool want = !miner::paused() && state != State::Boot && state != State::HardwareTest &&
+                    (state == State::Miner || power::usbConnected());
+  miner::run(want);
+  btcinfo::want(state == State::Miner);   // el precio y la red, solo si alguien los mira
 }
 
 // ============================================================ SEED LAB
@@ -451,7 +483,7 @@ static void seedLab(ButtonEvent ev, uint32_t t) {
 static uint32_t setupSavedAt = 0;   // 0 = aún no han guardado
 
 static void setupMode(ButtonEvent ev, uint32_t t) {
-  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::ModeLong || t > 300000) return go(returnTo);
+  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::ModeLong || ev == ButtonEvent::SeedShort || t > 300000) return go(returnTo);
 
   portal::loop();
   if (portal::savedSinceLastAsk()) setupSavedAt = millis();
@@ -549,6 +581,7 @@ void begin() {
   lnbits::begin();
   badge::setWalletAddress(lnbits::address());
   miner::begin();
+  btcinfo::begin();
   // SEED pulsado al encender: directo a la prueba de placa
   if (digitalRead(PIN_BTN_SEED) == LOW) go(State::HardwareTest);
   else go(State::Boot);
@@ -570,6 +603,14 @@ static void onEnter(State s) {
     case State::SeedLab: nearby::stop(); radio::exclusive(true); seedlab::start(); break;   // radio apagada
     case State::HardwareTest: startHardwareTest(); break;
     case State::Withdraw:     withdrawShowQr = false; break;
+    case State::Miner: {                                           // que no salgan avisos de lo de antes
+      const nerdminer::Stats st = miner::stats();
+      seenJobs = st.templates;
+      seenShares = st.accepted;
+      toastText = "";
+      minerPage = 0;
+      break;
+    }
     default:                                       break;   // el resto no prepara nada
   }
 }
@@ -613,6 +654,7 @@ static void runState(ButtonEvent ev) {
 }
 
 void update(ButtonEvent ev) {
+  minerPolicy();
   checkZaps();
   checkInvites();
   const State before = state;

@@ -29,7 +29,7 @@ static void task(void*) {
       if (!isOff) {
         // Esperar a que todos hayan cerrado sus conexiones antes de apagar
         const uint32_t start = millis();
-        while (anyUser() && millis() - start < 4000) vTaskDelay(pdMS_TO_TICKS(20));
+        while (anyUser() && millis() - start < 8000) vTaskDelay(pdMS_TO_TICKS(20));
         if (anyUser()) Serial.println("[radio] aviso: alguien no ha cerrado a tiempo, apago igual");
         WiFi.disconnect(true);
         WiFi.mode(WIFI_OFF);
@@ -81,7 +81,7 @@ void exclusive(bool on) {
   wantExclusive = on;
   if (on) {
     const uint32_t start = millis();
-    while (!isOff && millis() - start < 6000) delay(10);
+    while (!isOff && millis() - start < 10000) delay(10);
   }
 }
 

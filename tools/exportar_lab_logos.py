@@ -80,6 +80,7 @@ LOGOS = [
     ("LAB_SPROUT", seeder_part((225, 245, 565, 835), 32, sprout_color)),
     ("LAB_SEEDER_WORD", seeder_part((580, 280, 1565, 485), 72, lambda p, x, y: GREEN)),
     ("LAB_NERDMINER", nerdminer(88)),
+    ("SEED_SPROUT_MINI", seeder_part((225, 245, 565, 835), 9, sprout_color)),   # delante del título del Seed Lab
 ]
 
 
@@ -87,29 +88,37 @@ def rgb565(r, g, b):
     return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
 
 
-out = ["#pragma once",
-       "// GENERADO por tools/exportar_lab_logos.py a partir de assets/logos. No se edita a mano.",
-       "// Solo lo incluye ui/screens_seed.cpp.",
-       "#include \"display.h\"",
-       ""]
-for cname, im in LOGOS:
-    px = [im.getpixel((x, y)) for y in range(im.height) for x in range(im.width)]
-    out.append(f"// {im.width} x {im.height}, color + alfa")
-    out.append(f"static const uint16_t {cname}_PIXELS[] = {{")
-    for i in range(0, len(px), 16):
-        out.append("  " + ", ".join(f"0x{rgb565(*p[:3]):04X}" for p in px[i:i + 16]) + ",")
-    out.append("};")
-    out.append(f"static const uint8_t {cname}_ALPHA[] = {{")
-    for i in range(0, len(px), 24):
-        out.append("  " + ",".join(str(p[3]) for p in px[i:i + 24]) + ",")
-    out.append("};")
-    out.append(f"static const AlphaLogo {cname} = {{{im.width}, {im.height}, {cname}_PIXELS, {cname}_ALPHA}};")
-    out.append("")
-    print(f"{cname}: {im.width} x {im.height}")
+# El logo pequeño del NerdMiner, para la esquina de su pantalla (lo incluye ui/screens_miner.cpp)
+MINER_LOGOS = [("MINER_LOGO", nerdminer(60))]
 
-with open(DEST, "w", encoding="utf-8") as f:
-    f.write("\n".join(out))
-print("escrito", DEST)
+
+def write(dest, logos, who):
+    out = ["#pragma once",
+           "// GENERADO por tools/exportar_lab_logos.py a partir de assets/logos. No se edita a mano.",
+           f"// Solo lo incluye {who}.",
+           "#include \"display.h\"",
+           ""]
+    for cname, im in logos:
+        px = [im.getpixel((x, y)) for y in range(im.height) for x in range(im.width)]
+        out.append(f"// {im.width} x {im.height}, color + alfa")
+        out.append(f"static const uint16_t {cname}_PIXELS[] = {{")
+        for i in range(0, len(px), 16):
+            out.append("  " + ", ".join(f"0x{rgb565(*p[:3]):04X}" for p in px[i:i + 16]) + ",")
+        out.append("};")
+        out.append(f"static const uint8_t {cname}_ALPHA[] = {{")
+        for i in range(0, len(px), 24):
+            out.append("  " + ",".join(str(p[3]) for p in px[i:i + 24]) + ",")
+        out.append("};")
+        out.append(f"static const AlphaLogo {cname} = {{{im.width}, {im.height}, {cname}_PIXELS, {cname}_ALPHA}};")
+        out.append("")
+        print(f"{cname}: {im.width} x {im.height}")
+    with open(dest, "w", encoding="utf-8") as f:
+        f.write(chr(10).join(out))
+    print("escrito", dest)
+
+
+write(DEST, LOGOS, "ui/screens_seed.cpp")
+write(os.path.join(HERE, "..", "src", "ui", "miner_logo_data.h"), MINER_LOGOS, "ui/screens_miner.cpp")
 
 if len(sys.argv) > 1:
     card = Image.new("RGBA", (360, 120), (0x1A, 0x1D, 0x26, 255))

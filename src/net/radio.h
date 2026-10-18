@@ -35,7 +35,7 @@ enum class Status : uint8_t {
 };
 
 // Los que abren conexiones por internet
-enum class User : uint8_t { Nostr, Lnbits, Miner, Count };
+enum class User : uint8_t { Nostr, Lnbits, Miner, BitcoinInfo, Count };
 
 void begin();
 void reloadNetwork();          // volver a leer la WiFi guardada (después de cambiarla)

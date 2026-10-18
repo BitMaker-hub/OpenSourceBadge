@@ -33,6 +33,7 @@ struct Stats {
   uint32_t blocks;       // bloques encontrados (ojalá algún día sea 1)
   double   bestDiff;     // la mejor dificultad conseguida
   uint32_t templates;    // trabajos recibidos del pool
+  uint32_t lastJobAt;    // millis() del último trabajo nuevo (0 = ninguno)
   uint32_t lastShareAt;  // millis() del último share aceptado (0 = ninguno)
   double   poolDiff;     // la dificultad que pide el pool para aceptar un share
   uint32_t minedMs;      // tiempo minando con trabajo del pool desde que se encendió

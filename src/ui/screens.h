@@ -13,6 +13,7 @@
 #include "../hardware/buttons.h"
 #include "../net/nearby.h"
 #include <nerdminer.h>
+#include "../net/bitcoin_info.h"
 
 namespace screens {
 
@@ -32,9 +33,22 @@ void qrFullscreen(const QrItem& item);
 void setup(uint32_t t, int phonesConnected);
 void setupSaved();
 
-// LAB y NerdMiner (ui/screens_seed.cpp y ui/screens.cpp)
+// LAB (ui/screens_seed.cpp)
 void lab(int selected, bool mining);
-void miner(const nerdminer::Stats& s, const float* history, int historyNext, bool online);
+
+// NerdMiner (ui/screens_miner.cpp): dos páginas, el minero y la red Bitcoin.
+// toast = aviso de un momento abajo ("New job received", "Share accepted!"); "" = ninguno
+struct MinerView {
+  nerdminer::Stats stats;
+  const float* history;      // kH/s de los últimos ~48 s
+  int    historyNext;
+  bool   online;
+  bool   paused;
+  String toast;
+  uint16_t toastColor;
+};
+void minerMining(const MinerView& v);
+void minerBitcoin(const MinerView& v, const btcinfo::Info& info);
 
 // Seed Lab (ui/screens_seed.cpp)
 void seedMenu(bool coinSelected);

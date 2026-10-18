@@ -111,7 +111,13 @@ cuando la radio está en exclusivo (handshake, SETUP, Seed Lab) espera y sigue s
   enseña su web); los de 32 bits del NerdMiner original salen en el comando `i`.
 - Mientras mina se quita del watchdog la tarea de reposo del núcleo 0 (como hace el NerdMiner); al parar se vuelve a
   poner. Sin eso el chip se reiniciaba a los 5 s.
-- Gasta bastante: mejor enchufado por USB.
+- **Cuándo mina:** con USB, siempre (también en segundo plano); con batería, solo mientras se mira su pantalla.
+  PEER largo lo pone en pausa (se guarda). Nunca durante el handshake, el SETUP o el Seed Lab.
+- **Dos páginas** (PEER o MODE cambian, SEED vuelve), siempre con el logotipo del NerdMiner arriba a la izquierda:
+  el minero (hashrate, gráfica, shares, dificultades, tiempo) y la red Bitcoin de mempool.space (precio, bloque,
+  comisión, dificultad, hashrate y una barra vertical hasta el halving; `net/bitcoin_info`, solo mientras se mira).
+- **Avisos:** "New job received" con una vuelta de 4 LEDs azules por la B, y "Share accepted!" con un parpadeo
+  verde de RX. Nunca la B entera de golpe: con el chip minando, el salto de consumo hace pitar la fuente.
 
 ## Seed Lab
 

@@ -8,6 +8,7 @@ static Preferences prefs;
 static String   poolHost, btcAddress;
 static uint16_t poolPort = DEFAULT_PORT;
 static bool     on = false;
+static bool     userPaused = false;
 
 static String get(const char* key, const char* def) { return prefs.isKey(key) ? prefs.getString(key) : def; }
 
@@ -20,7 +21,7 @@ void begin() {
     poolHost = DEFAULT_POOL;
     poolPort = DEFAULT_PORT;
   }
-  if (prefs.getBool("m_on", false)) start();       // estaba minando: seguimos
+  userPaused = prefs.getBool("m_pause", false);
 }
 
 void setConfig(const String& pool, uint16_t port, const String& address) {
@@ -30,7 +31,7 @@ void setConfig(const String& pool, uint16_t port, const String& address) {
   prefs.putString("m_pool", poolHost);
   prefs.putUShort("m_port", poolPort);
   prefs.putString("m_addr", btcAddress);
-  if (on) { stop(); start(); }                      // con lo nuevo
+  if (on) { run(false); run(true); }                // con lo nuevo
 }
 
 String   pool()    { return poolHost; }
@@ -44,22 +45,26 @@ static String stratumUser() {
   const String a = address();
   return a.indexOf('.') >= 0 ? a : a + "." + WORKER;
 }
-bool     enabled() { return on; }
 
-bool start() {
-  nerdminer::start({poolHost, poolPort, stratumUser(), "x"}, radio::online,
-                   [](bool open) { radio::busy(radio::User::Miner, open); });
-  on = true;
-  prefs.putBool("m_on", true);
-  Serial.printf("[miner] minando en %s:%u para %s\n", poolHost.c_str(), poolPort, btcAddress.c_str());
-  return true;
+void run(bool want) {
+  if (want == on) return;
+  on = want;
+  if (on) {
+    nerdminer::start({poolHost, poolPort, stratumUser(), "x"}, radio::online,
+                     [](bool open) { radio::busy(radio::User::Miner, open); });
+    Serial.printf("[miner] minando en %s:%u como %s\n", poolHost.c_str(), poolPort, stratumUser().c_str());
+  } else {
+    nerdminer::stop();
+    Serial.println("[miner] parado");
+  }
 }
 
-void stop() {
-  nerdminer::stop();
-  on = false;
-  prefs.putBool("m_on", false);
-  Serial.println("[miner] parado");
+bool running() { return on; }
+bool paused()  { return userPaused; }
+
+void setPaused(bool p) {
+  userPaused = p;
+  prefs.putBool("m_pause", p);
 }
 
 nerdminer::Stats stats() { return nerdminer::stats(); }
