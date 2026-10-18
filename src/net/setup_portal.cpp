@@ -4,6 +4,7 @@
 #include "../ui/avatars.h"
 #include "../app/storage.h"
 #include "lnbits.h"
+#include "miner.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
@@ -59,6 +60,8 @@ static void sendProfile() {
   storage::loadNetwork(ssid, password);
   body += ",\"wifi\":" + json(ssid);
   body += ",\"wallet\":" + json(lnbits::address());
+  body += ",\"mpool\":" + json(miner::pool() + ":" + String(miner::port()));
+  body += ",\"maddr\":" + json(miner::address());
   body += ",\"wifiSaved\":" + String(password.length() ? "true" : "false");
   body += ",\"roles\":" + roles + "}";
   server.send(200, "application/json", body);
@@ -100,6 +103,18 @@ static void saveProfile() {
   const uint32_t now = server.arg("now").toInt();
   if (now > 1700000000) badge::setTime(now);
   if (server.hasArg("tz")) badge::setTimezone(server.arg("tz").toInt());
+
+  // NerdMiner: pool (host:puerto) y dirección que cobra
+  if (server.hasArg("maddr")) {
+    String pool = server.arg("mpool");
+    pool.trim();
+    const int colon = pool.lastIndexOf(':');
+    const String host = colon > 0 ? pool.substring(0, colon) : pool;
+    const uint16_t port = colon > 0 ? pool.substring(colon + 1).toInt() : 0;
+    String addr = server.arg("maddr");
+    addr.trim();
+    miner::setConfig(host, port, addr);
+  }
 
   saved = true;
   Serial.printf("[portal] perfil guardado: %s (%s)\n", me.name.c_str(), roleInfo(me.role).name);

@@ -1,0 +1,6 @@
+{
+  "name": "nerdminer",
+  "version": "1.8.3",
+  "description": "Núcleo de minado del NerdMiner_v2 (BitMaker-hub, MIT) adaptado al Open Source Badge",
+  "build": { "flags": "-Wno-deprecated-declarations -Wno-format -Wno-unused-variable -Wno-unused-value -Wno-sequence-point -Wno-unused-but-set-variable -Wno-array-bounds" }
+}

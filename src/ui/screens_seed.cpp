@@ -9,6 +9,7 @@
 #include "screen_parts.h"
 #include "display.h"
 #include "../config.h"
+#include "../net/miner.h"
 
 namespace screens {
 
@@ -169,6 +170,54 @@ static void pixelDie(int x0, int y, int s, uint8_t value) {
     if (face & (1 << k))
       for (int dj = 0; dj < 2; dj++)
         for (int di = 0; di < 2; di++) cell(x0, y, s, POS[k % 3] + di, POS[k / 3] + dj, pal::DiePip);
+}
+
+// ============================================================ LAB (el menú de SEED)
+
+// Un chip de minero en pixel art: el cuadrado del ASIC con sus patas y la ₿
+static void pixelChip(int cx, int y, int s) {
+  static const char* const CHIP[] = {
+    "..#.#.#.#.#.#..",
+    "...............",
+    "#.###########.#",
+    "..#ooooooooo#..",
+    "#.#o..b.b..o#.#",
+    "..#o.bbbbb.o#..",
+    "#.#o.b...b.o#.#",
+    "..#o.bbbb..o#..",
+    "#.#o.b...b.o#.#",
+    "..#o.bbbbb.o#..",
+    "#.#o..b.b..o#.#",
+    "..#ooooooooo#..",
+    "#.###########.#",
+    "...............",
+    "..#.#.#.#.#.#..",
+  };
+  const int x0 = cx - 15 * s / 2;
+  for (int j = 0; j < 15; j++)
+    for (int i = 0; i < 15; i++) {
+      const char c = CHIP[j][i];
+      if (c == '.') continue;
+      const uint16_t col = c == '#' ? ink::Soft : c == 'o' ? rgb(0x2B2F3A) : ink::Orange;
+      display::rect(x0 + i * s, y + j * s, s, s, col);
+    }
+}
+
+void lab(int selected, bool mining) {
+  header("LAB", ink::Orange);
+  display::text("What do you want to try?", CX, 26, Font::Body, ink::Soft, Align::Center);
+  for (int i = 0; i < 2; i++) {
+    const bool on = i == selected;
+    const int y = 50 + i * 112;
+    optionCard(6, y, 158, 104, on);
+    if (i == 0) pixelCoin(40, y + 18, 4, true);
+    else        pixelChip(40, y + 22, 4);
+    display::text(i == 0 ? "Seed" : "Nerd", 112, y + 18, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
+    display::text(i == 0 ? "Lab" : "Miner", 112, y + 44, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
+    display::text(i == 0 ? "MAKE A SEED" : (mining ? "MINING NOW" : "SOLO MINING"), 112, y + 78, Font::Label,
+                  i == 1 && mining ? ink::Ok : ink::Dim, Align::Center);
+  }
+  keys(300, "PEER", "next", "MODE", "go", "SEED", "exit");
 }
 
 // ============================================================ paso 1: método

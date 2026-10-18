@@ -20,7 +20,7 @@
 //      PEER corto  -> HANDSHAKE (buscar, encontrar, minar, minado) y vuelve
 //      PEER largo  -> QR_FULLSCREEN, y PEER vuelve
 //      MODE largo  -> SETUP (WiFi y badge.local), y MODE vuelve
-//      SEED corto  -> SEED_LAB, y SEED vuelve
+//      SEED corto  -> LAB (menú): SEED_LAB o MINER
 //      SEED largo  -> HARDWARE_TEST (prueba de placa)
 //    Un zap o un pago que llega (Nostr o LNbits) -> ZAP, y vuelve solo a los 6 s
 //    En STATS, PEER largo -> WITHDRAW (sacar los sats del monedero del badge)
@@ -46,7 +46,9 @@ enum class State : uint8_t {
   Invite,          // otro badge nos invita a hacer handshake
   Zap,
   Withdraw,        // sacar los sats del monedero LNbits (QR del monedero, con aviso)
+  Lab,             // menú de SEED: Seed Lab o NerdMiner
   SeedLab,
+  Miner,           // el modo NerdMiner
   Setup,
   HardwareTest,
 };

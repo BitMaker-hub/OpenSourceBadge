@@ -9,6 +9,7 @@
 #include "../net/setup_portal.h"
 #include "../net/nostr_zaps.h"
 #include "../net/lnbits.h"
+#include "../net/miner.h"
 
 namespace screens {
 
@@ -370,6 +371,61 @@ void handshakeMined(const Peer& other) {
   display::text("+1 peer", CX, 224, Font::Title, ink::Orange, Align::Center);
   display::text("Contact saved", CX, 254, Font::Body, ink::Dim, Align::Center);
   display::text("Nostr - X - Zaps", CX, 270, Font::Body, ink::Dim, Align::Center);
+}
+
+// ============================================================ NERDMINER
+
+// 1234567 -> "1.23M", como el NerdMiner
+static String shortNumber(double v) {
+  if (v < 1) return String(v, v < 0.001 ? 6 : 4);                 // las pequeñas, con decimales
+  static const char* const SUFFIX[] = {"", "K", "M", "G", "T", "P"};
+  int k = 0;
+  while (v >= 1000 && k < 5) { v /= 1000; k++; }
+  return String(v, v < 10 ? 2 : v < 100 ? 1 : 0) + SUFFIX[k];
+}
+
+void miner(const nerdminer::Stats& s, const float* history, int historyNext, bool online) {
+  header("NERDMINER", ink::Orange);
+
+  // Estado en una pastilla
+  const char* state = !s.running ? "STOPPED" : !online ? "NO INTERNET" : s.connected ? "MINING" : "CONNECTING";
+  const uint16_t stateColor = !s.running ? ink::Dim : !online ? ink::Red : s.connected ? ink::Ok : ink::Gold;
+  const int pw = display::textWidth(state, Font::Label) + 12;
+  display::roundRect(CX - pw / 2, 24, pw, 13, stateColor);
+  display::text(state, CX, 27, Font::Label, ink::Bg, Align::Center);
+
+  if (miner::address().isEmpty()) {
+    centeredLines("First tell me where to send the block reward: hold MODE and add your Bitcoin address in badge.local.",
+                  80, 150, 6, 16, ink::Soft);
+    display::text("MODE back", CX, 300, Font::Body, ink::Dim, Align::Center);
+    return;
+  }
+
+  // Hashrate grande y su gráfica
+  display::text(String(s.khs, 1), CX, 46, Font::Title, ink::Fg, Align::Center);
+  display::text("KH/S", CX, 74, Font::Label, ink::Dim, Align::Center);
+  float top = 1;
+  for (int i = 0; i < 24; i++) top = max(top, history[i]);
+  for (int i = 0; i < 24; i++) {
+    const float v = history[(historyNext + i) % 24];
+    const int h = (int)(28 * v / top);
+    display::rect(14 + i * 6, 116 - h, 4, h, i == 23 ? ink::Orange : rgb(0x6A4312));
+  }
+
+  // Números
+  display::roundRect(6, 124, 158, 92, ink::Card);
+  display::text("Shares", 14, 128, Font::Body, ink::Dim);
+  display::text(String(s.shares), 158, 128, Font::Body, ink::Fg, Align::Right);
+  display::text("Best diff", 14, 146, Font::Body, ink::Dim);
+  display::text(shortNumber(s.bestDiff), 158, 146, Font::Body, ink::Gold, Align::Right);
+  display::text("Blocks", 14, 164, Font::Body, ink::Dim);
+  display::text(String(s.blocks), 158, 164, Font::Body, s.blocks ? ink::Ok : ink::Fg, Align::Right);
+  display::text("Jobs", 14, 182, Font::Body, ink::Dim);
+  display::text(String(s.templates), 158, 182, Font::Body, ink::Fg, Align::Right);
+  display::text(display::fit(miner::pool(), 150, Font::Label), CX, 202, Font::Label, ink::Dim, Align::Center);
+
+  centeredLines("Solo mining: a lottery. If you find a block, it is all yours.", 226, 154, 3, 16, ink::Soft);
+  display::text(s.running ? "PEER stop - MODE back" : "PEER start - MODE back", CX, 300, Font::Body, ink::Dim, Align::Center);
 }
 
 // ============================================================ WITHDRAW

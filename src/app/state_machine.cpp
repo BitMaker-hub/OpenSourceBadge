@@ -13,6 +13,7 @@
 #include "../net/nearby.h"
 #include "../net/radio.h"
 #include "../net/lnbits.h"
+#include "../net/miner.h"
 #include "seed_lab.h"
 
 namespace app {
@@ -48,7 +49,9 @@ const char* stateName(State s) {
     case State::Invite:       return "INVITE";
     case State::Zap:          return "ZAP";
     case State::Withdraw:     return "WITHDRAW";
+    case State::Lab:          return "LAB";
     case State::SeedLab:      return "SEED_LAB";
+    case State::Miner:        return "MINER";
     case State::Setup:        return "SETUP";
     case State::HardwareTest: return "HARDWARE_TEST";
   }
@@ -71,7 +74,7 @@ static bool homeButtons(ButtonEvent ev) {
     case ButtonEvent::PeerShort: returnTo = state; go(State::Handshake);    return true;
     case ButtonEvent::PeerLong:  returnTo = state; go(State::QrFullscreen); return true;
     case ButtonEvent::ModeLong:  returnTo = state; go(State::Setup);        return true;
-    case ButtonEvent::SeedShort: returnTo = state; go(State::SeedLab);      return true;
+    case ButtonEvent::SeedShort: returnTo = state; go(State::Lab);          return true;
     case ButtonEvent::SeedLong:  returnTo = state; go(State::HardwareTest); return true;
     default: return false;
   }
@@ -80,7 +83,14 @@ static bool homeButtons(ButtonEvent ev) {
 // En reposo, una sola brasa dando la vuelta a la B muy despacio.
 // Si hay un badge pegado al nuestro, TX y RX laten en morado.
 static void idleLeds(uint32_t t) {
-  effects::wander(groups::B, colors::Ember, 1800, t);
+  // Minando: una estela lenta por la B y, con cada share, un destello dorado
+  if (miner::enabled()) {
+    const nerdminer::Stats s = miner::stats();
+    if (s.lastShareAt && millis() - s.lastShareAt < 1500) effects::solid(groups::B, colors::Gold);
+    else effects::trail(groups::BOutline, colors::Ember, 3, 140, t);
+  } else {
+    effects::wander(groups::B, colors::Ember, 1800, t);
+  }
   if (nearby::closest()) effects::breathe(groups::TxRx, colors::Purple, 1600, t);
 }
 
@@ -382,6 +392,49 @@ static void withdraw(ButtonEvent ev, uint32_t t) {
   screens::withdraw(lnbits::accessUrl(), lnbits::balanceSats(), withdrawShowQr);
 }
 
+// ============================================================ LAB
+//
+// SEED abre este menú: el Seed Lab (aprender cómo nace una semilla) o el
+// NerdMiner (minar Bitcoin en solitario). PEER cambia, MODE entra, SEED sale.
+
+static int labSelected = 0;   // 0 = Seed Lab, 1 = NerdMiner
+
+static void lab(ButtonEvent ev, uint32_t t) {
+  if (ev == ButtonEvent::SeedShort || ev == ButtonEvent::SeedLong) return go(returnTo);
+  if (ev == ButtonEvent::PeerShort) labSelected = 1 - labSelected;
+  if (ev == ButtonEvent::ModeShort) return go(labSelected == 0 ? State::SeedLab : State::Miner);
+
+  idleLeds(t);
+  screens::lab(labSelected, miner::enabled());
+}
+
+// ============================================================ MINER
+//
+// La pantalla del NerdMiner. PEER enciende o apaga el minero; MODE o SEED
+// vuelven. Al salir, si está encendido, sigue minando en segundo plano.
+
+static float minerHistory[24];      // kH/s de los últimos ~48 s, para la gráfica
+static int   minerHistoryNext = 0;
+static uint32_t minerSampledAt = 0;
+
+static void miner(ButtonEvent ev, uint32_t t) {
+  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::SeedShort || ev == ButtonEvent::SeedLong) return go(returnTo);
+  if (ev == ButtonEvent::PeerShort) {
+    if (miner::enabled()) miner::stop();
+    else miner::start();
+  }
+
+  const nerdminer::Stats s = miner::stats();
+  if (millis() - minerSampledAt > 2000) {
+    minerHistory[minerHistoryNext] = s.khs;
+    minerHistoryNext = (minerHistoryNext + 1) % 24;
+    minerSampledAt = millis();
+  }
+  idleLeds(t);
+  if (s.running && s.connected) effects::blink(groups::Tx, colors::Orange, 600, t);
+  screens::miner(s, minerHistory, minerHistoryNext, radio::online());
+}
+
 // ============================================================ SEED LAB
 //
 // Tiene su propia máquina de estados en app/seed_lab: aquí solo se entra y se sale.
@@ -495,6 +548,7 @@ void begin() {
   nostrzaps::begin();
   lnbits::begin();
   badge::setWalletAddress(lnbits::address());
+  miner::begin();
   // SEED pulsado al encender: directo a la prueba de placa
   if (digitalRead(PIN_BTN_SEED) == LOW) go(State::HardwareTest);
   else go(State::Boot);
@@ -550,7 +604,9 @@ static void runState(ButtonEvent ev) {
     case State::Invite:       invite(ev, t);       break;
     case State::Zap:          zap(ev, t);          break;
     case State::Withdraw:     withdraw(ev, t);     break;
+    case State::Lab:          lab(ev, t);          break;
     case State::SeedLab:      seedLab(ev, t);      break;
+    case State::Miner:        miner(ev, t);        break;
     case State::Setup:        setupMode(ev, t);    break;
     case State::HardwareTest: hardwareTest(ev, t); break;
   }

@@ -29,6 +29,7 @@
 #include "net/radio.h"
 #include "net/nearby.h"
 #include "net/lnbits.h"
+#include "net/miner.h"
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 
@@ -42,6 +43,7 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   Nnpub1...  = cambiar el npub del perfil (y Nostr empieza a escuchar ese)
 //   Wred|clave = guardar la WiFi con internet para los zaps
 //   Lurl|inkey|direccion|acceso = grabar el monedero LNbits del badge (fábrica)
+//   Gpool|puerto|direccion = configurar el NerdMiner (y g = encender/apagar)
 //   i          = estado: perfil, WiFi de internet y Nostr
 //   Z          = poner a cero el contador de sats recibidos
 //   X          = borrar perfil y peers (dejarlo como nuevo)
@@ -119,6 +121,22 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("Monedero: %s en %s\n", parts[2].c_str(), parts[0].c_str());
       return ButtonEvent::None;
     }
+    case 'G': {
+      String parts[3];
+      String line = Serial.readStringUntil('\n');
+      line.trim();
+      for (int i = 0, from = 0; i < 3; i++) {
+        const int bar = line.indexOf('|', from);
+        parts[i] = bar < 0 ? line.substring(from) : line.substring(from, bar);
+        from = bar < 0 ? line.length() : bar + 1;
+      }
+      miner::setConfig(parts[0], parts[1].toInt(), parts[2]);
+      Serial.printf("Minero: %s:%u -> %s\n", miner::pool().c_str(), miner::port(), miner::address().c_str());
+      return ButtonEvent::None;
+    }
+    case 'g':
+      if (miner::enabled()) miner::stop(); else miner::start();
+      return ButtonEvent::None;
     case 'i': {
       String ssid, password;
       storage::loadNetwork(ssid, password);
@@ -133,6 +151,9 @@ static ButtonEvent readSerialCommand() {
       if (n) Serial.printf("  Pegado: #%03u %s (%d dBm)\n", n->number, n->name, n->rssi);
       static const char* const LN[] = {"sin monedero", "sin internet", "conectando", "escuchando"};
       Serial.printf("  LNbits: %s, %s, saldo %ld sats\n", LN[(int)lnbits::status()], lnbits::address().c_str(), (long)lnbits::balanceSats());
+      const nerdminer::Stats ms = miner::stats();
+      Serial.printf("  Minero: %s, %s, %.1f kH/s, %lu shares, mejor %.4f, %lu trabajos\n", miner::enabled() ? "encendido" : "apagado",
+                    ms.connected ? "con trabajo" : "sin trabajo", ms.khs, (unsigned long)ms.shares, ms.bestDiff, (unsigned long)ms.templates);
       return ButtonEvent::None;
     }
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;

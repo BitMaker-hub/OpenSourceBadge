@@ -12,6 +12,7 @@
 #include "../app/badge.h"
 #include "../hardware/buttons.h"
 #include "../net/nearby.h"
+#include <nerdminer.h>
 
 namespace screens {
 
@@ -30,6 +31,10 @@ void bootBadge(uint32_t t);
 void qrFullscreen(const QrItem& item);
 void setup(uint32_t t, int phonesConnected);
 void setupSaved();
+
+// LAB y NerdMiner (ui/screens_seed.cpp y ui/screens.cpp)
+void lab(int selected, bool mining);
+void miner(const nerdminer::Stats& s, const float* history, int historyNext, bool online);
 
 // Seed Lab (ui/screens_seed.cpp)
 void seedMenu(bool coinSelected);

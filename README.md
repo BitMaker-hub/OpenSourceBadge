@@ -18,7 +18,7 @@ pio device monitor
 |---|---|---|
 | **MODE** | Página siguiente: perfil → QR → peers → stats | Setup: WiFi abierta BADGE-xxx y badge.local |
 | **PEER** | Handshake con otro badge | QR a pantalla completa |
-| **SEED** | Seed Lab | Prueba de placa |
+| **SEED** | LAB: Seed Lab o NerdMiner | Prueba de placa |
 
 - **Prueba de placa:** se entra manteniendo SEED pulsado al encender, o con SEED largo. Recorre los 20 LEDs en
   rojo, verde y azul, enseña los botones pulsados, el voltaje del USB y de la batería, el consumo de los LEDs y lo
@@ -96,6 +96,19 @@ detrás de un aviso. Si un mismo pago llega por LNbits y por Nostr, sale una sol
   contra el LNbits de verdad.**
 - Probar sin servidor: `py tools/lnbits_falso.py 5055` imita a LNbits; `/pagar` y `/zap` lanzan pagos de prueba.
 
+## NerdMiner
+
+`lib/nerdminer` es el núcleo del [NerdMiner_v2](https://github.com/BitMaker-hub/NerdMiner_v2) (MIT): stratum, SHA-256
+y el trabajador por hardware del ESP32-S3, recortado en `miner_core.cpp` (sin pantallas ni WiFiManager, con
+arrancar/parar). `net/miner` lo envuelve con el pool y la dirección (en `badge.local` o con el comando serie
+`Gpool|puerto|direccion`; `g` enciende/apaga). Se entra desde LAB (SEED). Si estaba minando, sigue al encender, y
+cuando la radio está en exclusivo (handshake, SETUP, Seed Lab) espera y sigue solo.
+
+- Unos **143 kH/s** en public-pool.io, a la vez que escucha Nostr y LNbits.
+- Mientras mina se quita del watchdog la tarea de reposo del núcleo 0 (como hace el NerdMiner); al parar se vuelve a
+  poner. Sin eso el chip se reiniciaba a los 5 s.
+- Gasta bastante: mejor enchufado por USB.
+
 ## Seed Lab
 
 Para aprender cómo nace una semilla. Se elige dado (50 o 99 tiradas) o moneda (128 o 256), 12 o 24 palabras, y se
@@ -109,5 +122,4 @@ aprender: el badge tiene radio y para fondos de verdad hay que usar un dispositi
 ## Pendiente
 
 - Batería: medir consumo y apagar o atenuar pantalla y WiFi.
-- Modo NerdMiner.
 - Avisar de pagos Lightning que no vengan de Nostr (Nostr Wallet Connect).

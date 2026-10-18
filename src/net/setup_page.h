@@ -81,6 +81,13 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   <label for="wifipass">WiFi password</label>
   <input id="wifipass" type="password" maxlength="63" autocomplete="off">
 
+  <h2>Mine Bitcoin</h2>
+  <p class="hint">Your badge can solo-mine like a NerdMiner (in the LAB menu). If it ever finds a block, the reward goes here.</p>
+  <label for="maddr">Your Bitcoin address</label>
+  <input id="maddr" maxlength="90" placeholder="bc1q..." autocapitalize="off" spellcheck="false">
+  <label for="mpool">Pool</label>
+  <input id="mpool" maxlength="80" placeholder="public-pool.io:21496" autocapitalize="off" spellcheck="false">
+
   <button class="save" id="save">Save to my badge</button>
   <div id="msg" role="status"></div>
 </main>
@@ -118,6 +125,8 @@ fetch("/api/profile").then(r => r.json()).then(p => {
   });
   ["name", "handle", "npub", "ln", "tagline"].forEach(k => { $(k).value = p[k] || ""; $(k).oninput = refresh; });
   $("wifi").value = p.wifi || "";
+  $("maddr").value = p.maddr || "";
+  $("mpool").value = p.mpool || "";
   if (p.wallet) {
     $("ln").placeholder = p.wallet;
     $("lnhint").textContent = "Leave it empty to use your badge wallet (" + p.wallet + "). It lights up with every payment.";
@@ -143,6 +152,7 @@ $("save").onclick = () => {
   const body = new URLSearchParams({
     role, name: $("name").value, handle: $("handle").value, npub, ln: $("ln").value, tagline: $("tagline").value,
     wifi: $("wifi").value, wifipass: $("wifipass").value,
+    maddr: $("maddr").value, mpool: $("mpool").value,
     now: Math.floor(Date.now() / 1000), tz: -new Date().getTimezoneOffset()
   });
   fetch("/api/profile", {method: "POST", body}).then(r => r.ok ? show("Saved! Look at your badge.", "ok")
