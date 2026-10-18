@@ -16,6 +16,10 @@ void begin() {
   poolHost   = get("m_pool", DEFAULT_POOL);
   poolPort   = prefs.getUShort("m_port", DEFAULT_PORT);
   btcAddress = get("m_addr", "");
+  if (poolHost == "public-pool.io" && poolPort == 21496) {   // el de fábrica de antes: al nuevo
+    poolHost = DEFAULT_POOL;
+    poolPort = DEFAULT_PORT;
+  }
   if (prefs.getBool("m_on", false)) start();       // estaba minando: seguimos
 }
 
@@ -31,12 +35,19 @@ void setConfig(const String& pool, uint16_t port, const String& address) {
 
 String   pool()    { return poolHost; }
 uint16_t port()    { return poolPort; }
-String   address() { return btcAddress; }
+String   ownAddress()     { return btcAddress; }
+bool     defaultAddress() { return btcAddress.isEmpty(); }
+String   address()        { return btcAddress.isEmpty() ? String(DEFAULT_ADDRESS) : btcAddress; }
+
+// Lo que va en el usuario de stratum: dirección.worker (si ya trae worker, se respeta)
+static String stratumUser() {
+  const String a = address();
+  return a.indexOf('.') >= 0 ? a : a + "." + WORKER;
+}
 bool     enabled() { return on; }
 
 bool start() {
-  if (btcAddress.isEmpty()) return false;
-  nerdminer::start({poolHost, poolPort, btcAddress, "x"}, radio::online);
+  nerdminer::start({poolHost, poolPort, stratumUser(), "x"}, radio::online);
   on = true;
   prefs.putBool("m_on", true);
   Serial.printf("[miner] minando en %s:%u para %s\n", poolHost.c_str(), poolPort, btcAddress.c_str());

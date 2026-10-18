@@ -394,13 +394,6 @@ void miner(const nerdminer::Stats& s, const float* history, int historyNext, boo
   display::roundRect(CX - pw / 2, 24, pw, 13, stateColor);
   display::text(state, CX, 27, Font::Label, ink::Bg, Align::Center);
 
-  if (miner::address().isEmpty()) {
-    centeredLines("First tell me where to send the block reward: hold MODE and add your Bitcoin address in badge.local.",
-                  80, 150, 6, 16, ink::Soft);
-    display::text("MODE back", CX, 300, Font::Body, ink::Dim, Align::Center);
-    return;
-  }
-
   // Hashrate grande y su gráfica
   display::text(String(s.khs, 1), CX, 46, Font::Title, ink::Fg, Align::Center);
   display::text("KH/S", CX, 74, Font::Label, ink::Dim, Align::Center);
@@ -424,7 +417,11 @@ void miner(const nerdminer::Stats& s, const float* history, int historyNext, boo
   display::text(String(s.templates), 158, 182, Font::Body, ink::Fg, Align::Right);
   display::text(display::fit(miner::pool(), 150, Font::Label), CX, 202, Font::Label, ink::Dim, Align::Center);
 
-  centeredLines("Solo mining: a lottery. If you find a block, it is all yours.", 226, 154, 3, 16, ink::Soft);
+  // A quién va el premio, sin engañar: de fábrica es para Bitronics
+  if (miner::defaultAddress())
+    centeredLines("Mining for Bitronics. Add your address in badge.local and a block is all yours.", 226, 154, 4, 16, ink::Soft);
+  else
+    centeredLines("Solo mining: a lottery. If you find a block, it is all yours.", 226, 154, 3, 16, ink::Soft);
   display::text(s.running ? "PEER stop - MODE back" : "PEER start - MODE back", CX, 300, Font::Body, ink::Dim, Align::Center);
 }
 

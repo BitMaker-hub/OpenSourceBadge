@@ -61,7 +61,7 @@ static void sendProfile() {
   body += ",\"wifi\":" + json(ssid);
   body += ",\"wallet\":" + json(lnbits::address());
   body += ",\"mpool\":" + json(miner::pool() + ":" + String(miner::port()));
-  body += ",\"maddr\":" + json(miner::address());
+  body += ",\"maddr\":" + json(miner::ownAddress());
   body += ",\"wifiSaved\":" + String(password.length() ? "true" : "false");
   body += ",\"roles\":" + roles + "}";
   server.send(200, "application/json", body);

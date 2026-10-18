@@ -187,6 +187,17 @@ void logo(const Logo& l, int centerX, int y, uint8_t fade) {
   }
 }
 
+void logo(const AlphaLogo& l, int x, int y) {
+  for (int j = 0; j < l.height; j++) {
+    for (int i = 0; i < l.width; i++) {
+      const uint8_t a = l.alpha[j * l.width + i];
+      if (a == 0) continue;
+      const uint16_t c = l.pixels[j * l.width + i];
+      lienzo.drawPixel(x + i, y + j, a == 255 ? c : blend(lienzo.readPixel(x + i, y + j), c, a));
+    }
+  }
+}
+
 // ---------------------------------------------------------------- QR
 int qr(const String& data, int centerX, int y, int maxSize) {
   static uint8_t buffer[700];   // cabe hasta la versión 13

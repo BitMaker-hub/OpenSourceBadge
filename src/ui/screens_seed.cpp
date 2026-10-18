@@ -10,6 +10,7 @@
 #include "display.h"
 #include "../config.h"
 #include "../net/miner.h"
+#include "lab_logos_data.h"
 
 namespace screens {
 
@@ -174,49 +175,33 @@ static void pixelDie(int x0, int y, int s, uint8_t value) {
 
 // ============================================================ LAB (el menú de SEED)
 
-// Un chip de minero en pixel art: el cuadrado del ASIC con sus patas y la ₿
-static void pixelChip(int cx, int y, int s) {
-  static const char* const CHIP[] = {
-    "..#.#.#.#.#.#..",
-    "...............",
-    "#.###########.#",
-    "..#ooooooooo#..",
-    "#.#o..b.b..o#.#",
-    "..#o.bbbbb.o#..",
-    "#.#o.b...b.o#.#",
-    "..#o.bbbb..o#..",
-    "#.#o.b...b.o#.#",
-    "..#o.bbbbb.o#..",
-    "#.#o..b.b..o#.#",
-    "..#ooooooooo#..",
-    "#.###########.#",
-    "...............",
-    "..#.#.#.#.#.#..",
-  };
-  const int x0 = cx - 15 * s / 2;
-  for (int j = 0; j < 15; j++)
-    for (int i = 0; i < 15; i++) {
-      const char c = CHIP[j][i];
-      if (c == '.') continue;
-      const uint16_t col = c == '#' ? ink::Soft : c == 'o' ? rgb(0x2B2F3A) : ink::Orange;
-      display::rect(x0 + i * s, y + j * s, s, s, col);
-    }
+// Cada opción lleva su logotipo y su color: el verde de la Seeder (de semilla)
+// y el amarillo del NerdMiner. El logotipo ya dice qué es; debajo, una línea.
+namespace lablogo { constexpr uint16_t Seeder = rgb(0x5CD68A), Nerd = rgb(0xFFE600); }
+
+static void labCard(int y, bool selected, uint16_t accent) {
+  display::roundRect(6, y, 158, 104, selected ? accent : ink::Line);
+  display::roundRect(8, y + 2, 154, 100, selected ? display::blend(ink::Card, accent, 28) : ink::Card);
 }
 
 void lab(int selected, bool mining) {
   header("LAB", ink::Orange);
   display::text("What do you want to try?", CX, 26, Font::Body, ink::Soft, Align::Center);
-  for (int i = 0; i < 2; i++) {
-    const bool on = i == selected;
-    const int y = 50 + i * 112;
-    optionCard(6, y, 158, 104, on);
-    if (i == 0) pixelCoin(40, y + 18, 4, true);
-    else        pixelChip(40, y + 22, 4);
-    display::text(i == 0 ? "Seed" : "Nerd", 112, y + 18, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
-    display::text(i == 0 ? "Lab" : "Miner", 112, y + 44, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
-    display::text(i == 0 ? "MAKE A SEED" : (mining ? "MINING NOW" : "SOLO MINING"), 112, y + 78, Font::Label,
-                  i == 1 && mining ? ink::Ok : ink::Dim, Align::Center);
-  }
+
+  // Seeder: el brote a la izquierda, la palabra SEEDER a la derecha
+  int y = 50;
+  labCard(y, selected == 0, lablogo::Seeder);
+  display::logo(LAB_SPROUT, 22, y + 13);
+  display::logo(LAB_SEEDER_WORD, 112 - LAB_SEEDER_WORD.width / 2, y + 32);
+  display::text("MAKE A SEED", 112, y + 62, Font::Label, selected == 0 ? lablogo::Seeder : ink::Dim, Align::Center);
+
+  // NerdMiner: su logotipo tal cual, y si está minando
+  y = 162;
+  labCard(y, selected == 1, lablogo::Nerd);
+  display::logo(LAB_NERDMINER, CX - LAB_NERDMINER.width / 2, y + 6);
+  display::text(mining ? "MINING NOW" : "SOLO MINING", CX, y + 89, Font::Label,
+                mining ? ink::Ok : (selected == 1 ? lablogo::Nerd : ink::Dim), Align::Center);
+
   keys(300, "PEER", "next", "MODE", "go", "SEED", "exit");
 }
 

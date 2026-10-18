@@ -5,7 +5,11 @@
 //  Envuelve lib/nerdminer (el núcleo del NerdMiner_v2) con lo que pone el
 //  badge: el pool y la dirección se guardan en la memoria (badge.local o el
 //  comando serie "G"), y si estaba minando al apagarlo, vuelve a minar al
-//  encenderlo. Necesita internet (net/radio): durante el handshake, el SETUP o
+//  encenderlo.
+//
+//  De fábrica mina sin tocar nada: al pool de NerdMiners de Bitronics y a la
+//  dirección de Bitronics (worker "nerdminerBadge"). Si el dueño pone la suya
+//  en badge.local, mina para él; si la borra, vuelve a la de fábrica. Necesita internet (net/radio): durante el handshake, el SETUP o
 //  el Seed Lab se queda esperando y sigue después solo.
 //
 //  Gasta: el acelerador SHA del chip va a tope. Mejor enchufado por USB.
@@ -15,17 +19,21 @@
 
 namespace miner {
 
-constexpr const char* DEFAULT_POOL = "public-pool.io";
-constexpr uint16_t    DEFAULT_PORT = 21496;
+constexpr const char* DEFAULT_POOL    = "pool.bitronics.store";   // el pool de NerdMiners (dificultad fraccionaria)
+constexpr uint16_t    DEFAULT_PORT    = 3334;
+constexpr const char* DEFAULT_ADDRESS = "bc1qcnwjerakcqn5etns97ma3vfk9e4mp66ghscmft";
+constexpr const char* WORKER          = "nerdminerBadge";
 
 void begin();                 // lee la configuración y, si estaba minando, sigue
 
 void setConfig(const String& pool, uint16_t port, const String& address);
 String   pool();
 uint16_t port();
-String   address();           // "" = aún no hay dirección: no se puede minar
+String   address();           // la que cobra: la del dueño o, si no puso ninguna, la de fábrica
+String   ownAddress();        // la que puso el dueño ("" = ninguna)
+bool     defaultAddress();    // true si está minando para la dirección de fábrica
 
-bool start();                 // false si falta la dirección
+bool start();
 void stop();
 bool enabled();               // el usuario lo ha encendido
 

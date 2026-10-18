@@ -82,11 +82,11 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   <input id="wifipass" type="password" maxlength="63" autocomplete="off">
 
   <h2>Mine Bitcoin</h2>
-  <p class="hint">Your badge can solo-mine like a NerdMiner (in the LAB menu). If it ever finds a block, the reward goes here.</p>
+  <p class="hint">Your badge solo-mines like a NerdMiner (LAB menu) on the Bitronics pool. Leave the address empty and it mines for Bitronics; put yours and, if it ever finds a block, the reward is yours.</p>
   <label for="maddr">Your Bitcoin address</label>
-  <input id="maddr" maxlength="90" placeholder="bc1q..." autocapitalize="off" spellcheck="false">
+  <input id="maddr" maxlength="90" placeholder="Empty = mine for Bitronics" autocapitalize="off" spellcheck="false">
   <label for="mpool">Pool</label>
-  <input id="mpool" maxlength="80" placeholder="public-pool.io:21496" autocapitalize="off" spellcheck="false">
+  <input id="mpool" maxlength="80" placeholder="pool.bitronics.store:3334" autocapitalize="off" spellcheck="false">
 
   <button class="save" id="save">Save to my badge</button>
   <div id="msg" role="status"></div>

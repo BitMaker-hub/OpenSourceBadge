@@ -50,6 +50,8 @@ enum class Align : uint8_t { Left, Center, Right };
 
 // Imagen ya convertida a RGB565 (las genera tools/exportar_logos.py en ui/logos_data.h)
 struct Logo { uint16_t width; uint16_t height; const uint16_t* pixels; };
+// Un logo con transparencia: se mezcla con lo que ya hay debajo (tarjetas de cualquier color)
+struct AlphaLogo { uint16_t width; uint16_t height; const uint16_t* pixels; const uint8_t* alpha; };
 
 enum class Icon : uint8_t { Peers, Bolt, Bars, Chain };
 
@@ -85,6 +87,7 @@ void bitmap(const char* const* rows, int nRows, int x, int y, int scale, uint16_
 
 // Un logo de ui/logos_data.h, centrado en centerX. fade = 255 se ve entero, 0 no se ve.
 void logo(const Logo& l, int centerX, int y, uint8_t fade = 255);
+void logo(const AlphaLogo& l, int x, int y);   // x, y = esquina de arriba a la izquierda
 
 // Mezcla dos colores de pantalla: amount = 0 -> a, 255 -> b
 uint16_t blend(uint16_t a, uint16_t b, uint8_t amount);
