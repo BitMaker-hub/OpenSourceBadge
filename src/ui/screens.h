@@ -43,7 +43,6 @@ struct MinerView {
   const float* history;      // kH/s de los últimos ~48 s
   int    historyNext;
   bool   online;
-  bool   paused;
   String toast;
   uint16_t toastColor;
 };

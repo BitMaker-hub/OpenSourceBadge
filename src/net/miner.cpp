@@ -8,7 +8,6 @@ static Preferences prefs;
 static String   poolHost, btcAddress;
 static uint16_t poolPort = DEFAULT_PORT;
 static bool     on = false;
-static bool     userPaused = false;
 
 static String get(const char* key, const char* def) { return prefs.isKey(key) ? prefs.getString(key) : def; }
 
@@ -21,7 +20,6 @@ void begin() {
     poolHost = DEFAULT_POOL;
     poolPort = DEFAULT_PORT;
   }
-  userPaused = prefs.getBool("m_pause", false);
 }
 
 void setConfig(const String& pool, uint16_t port, const String& address) {
@@ -60,12 +58,6 @@ void run(bool want) {
 }
 
 bool running() { return on; }
-bool paused()  { return userPaused; }
-
-void setPaused(bool p) {
-  userPaused = p;
-  prefs.putBool("m_pause", p);
-}
 
 nerdminer::Stats stats() { return nerdminer::stats(); }
 

@@ -417,8 +417,7 @@ static void lab(ButtonEvent ev, uint32_t t) {
 // ============================================================ MINER
 //
 // El NerdMiner, en dos páginas: el minero y la red Bitcoin. PEER o MODE cambian
-// de página, SEED vuelve. PEER largo lo pone en pausa (o lo quita).
-// Cuándo mina no lo decide esta pantalla sino minerPolicy(), más abajo.
+// de página, SEED vuelve. Mina solo mientras se está en esta pantalla.
 
 static float    minerHistory[24];      // kH/s de los últimos ~48 s, para la gráfica
 static int      minerHistoryNext = 0;
@@ -442,7 +441,6 @@ static void minerToasts(const nerdminer::Stats& s) {
 static void miner(ButtonEvent ev, uint32_t t) {
   if (ev == ButtonEvent::SeedShort || ev == ButtonEvent::SeedLong) return go(returnTo);
   if (ev == ButtonEvent::PeerShort || ev == ButtonEvent::ModeShort) minerPage = 1 - minerPage;
-  if (ev == ButtonEvent::PeerLong) miner::setPaused(!miner::paused());
 
   const nerdminer::Stats s = miner::stats();
   if (millis() - minerSampledAt > 2000) {
@@ -453,17 +451,15 @@ static void miner(ButtonEvent ev, uint32_t t) {
   minerToasts(s);
   idleLeds(t);
 
-  screens::MinerView v{s, minerHistory, minerHistoryNext, radio::online(), miner::paused(), toastText, toastColor};
+  screens::MinerView v{s, minerHistory, minerHistoryNext, radio::online(), toastText, toastColor};
   if (minerPage == 0) screens::minerMining(v);
   else                screens::minerBitcoin(v, btcinfo::get());
 }
 
-// Cuándo mina: con USB, siempre; con batería, solo mirando su pantalla (gasta
-// mucho). Nunca si el usuario lo ha puesto en pausa.
+// Cuándo mina: solo mirando su pantalla (con USB o sin él). Así nunca gasta
+// batería ni calienta a escondidas.
 static void minerPolicy() {
-  const bool want = !miner::paused() && state != State::Boot && state != State::HardwareTest &&
-                    (state == State::Miner || power::usbConnected());
-  miner::run(want);
+  miner::run(state == State::Miner);
   btcinfo::want(state == State::Miner);   // el precio y la red, solo si alguien los mira
 }
 

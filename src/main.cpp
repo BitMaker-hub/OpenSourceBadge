@@ -149,10 +149,6 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("Minero: %s:%u -> %s\n", miner::pool().c_str(), miner::port(), miner::address().c_str());
       return ButtonEvent::None;
     }
-    case 'g':
-      miner::setPaused(!miner::paused());
-      Serial.println(miner::paused() ? "Minero en pausa" : "Minero sin pausa");
-      return ButtonEvent::None;
     case 'i': {
       String ssid, password;
       storage::loadNetwork(ssid, password);
@@ -169,7 +165,7 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("  LNbits: %s, %s, saldo %ld sats\n", LN[(int)lnbits::status()], lnbits::address().c_str(), (long)lnbits::balanceSats());
       const nerdminer::Stats ms = miner::stats();
       Serial.printf("  Minero: %s, %s, %.1f kH/s, %lu shares aceptados (%lu de 32 bits, %lu rechazados), mejor %.4f, pool pide %.4f, %lu trabajos\n",
-                    miner::paused() ? "en pausa" : miner::running() ? "minando" : "parado (con batería solo mina en su pantalla)", ms.connected ? "con trabajo" : "sin trabajo", ms.khs,
+                    miner::running() ? "minando" : "parado (solo mina en su pantalla)", ms.connected ? "con trabajo" : "sin trabajo", ms.khs,
                     (unsigned long)ms.accepted, (unsigned long)ms.shares, (unsigned long)ms.rejected, ms.bestDiff, ms.poolDiff,
                     (unsigned long)ms.templates);
       Serial.printf("  Encendido hace %lu min; último reinicio: %s\n", millis() / 60000, resetReason());

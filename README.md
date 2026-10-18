@@ -101,7 +101,7 @@ detrás de un aviso. Si un mismo pago llega por LNbits y por Nostr, sale una sol
 `lib/nerdminer` es el núcleo del [NerdMiner_v2](https://github.com/BitMaker-hub/NerdMiner_v2) (MIT): stratum, SHA-256
 y el trabajador por hardware del ESP32-S3, recortado en `miner_core.cpp` (sin pantallas ni WiFiManager, con
 arrancar/parar). `net/miner` lo envuelve con el pool y la dirección (en `badge.local` o con el comando serie
-`Gpool|puerto|direccion`; `g` enciende/apaga). Se entra desde LAB (SEED). Si estaba minando, sigue al encender, y
+`Gpool|puerto|direccion`). Se entra desde LAB (SEED), y
 cuando la radio está en exclusivo (handshake, SETUP, Seed Lab) espera y sigue solo.
 
 - **De fábrica** mina en `pool.bitronics.store:3334` (el pool de NerdMiners de Bitronics) para la dirección de
@@ -111,8 +111,8 @@ cuando la radio está en exclusivo (handshake, SETUP, Seed Lab) espera y sigue s
   enseña su web); los de 32 bits del NerdMiner original salen en el comando `i`.
 - Mientras mina se quita del watchdog la tarea de reposo del núcleo 0 (como hace el NerdMiner); al parar se vuelve a
   poner. Sin eso el chip se reiniciaba a los 5 s.
-- **Cuándo mina:** con USB, siempre (también en segundo plano); con batería, solo mientras se mira su pantalla.
-  PEER largo lo pone en pausa (se guarda). Nunca durante el handshake, el SETUP o el Seed Lab.
+- **Cuándo mina:** solo mientras se mira su pantalla, con USB o sin él (decisión de Roger: ni gasta batería ni
+  calienta a escondidas). Al salir, para.
 - **Dos páginas** (PEER o MODE cambian, SEED vuelve), siempre con el logotipo del NerdMiner arriba a la izquierda:
   el minero (hashrate, gráfica, shares, dificultades, tiempo) y la red Bitcoin de mempool.space (precio, bloque,
   comisión, dificultad, hashrate y una barra vertical hasta el halving; `net/bitcoin_info`, solo mientras se mira).

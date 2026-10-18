@@ -7,8 +7,7 @@
 //  comando serie "G").
 //
 //  Cuándo mina lo decide la máquina de estados (app/state_machine, minerPolicy):
-//  con USB, siempre; con batería, solo mientras se mira la pantalla del NerdMiner.
-//  El usuario puede ponerlo en pausa (se guarda); si no, mina.
+//  solo mientras se mira la pantalla del NerdMiner.
 //
 //  De fábrica mina sin tocar nada: al pool de NerdMiners de Bitronics y a la
 //  dirección de Bitronics (worker "nerdminerBadge"). Si el dueño pone la suya
@@ -38,9 +37,6 @@ bool     defaultAddress();    // true si está minando para la dirección de fá
 
 void run(bool on);            // arrancar o parar el núcleo (no se guarda)
 bool running();
-
-bool paused();                // el usuario lo ha puesto en pausa (se guarda)
-void setPaused(bool p);
 
 nerdminer::Stats stats();
 

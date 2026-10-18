@@ -28,10 +28,11 @@ static void pageDots(int page) {
     display::roundRect(CX - 9 + i * 12, 304, 6, 6, i == page ? nerd::Yellow : ink::Line);
 }
 
-// La fila de arriba de las dos páginas: la cabecera, el logotipo del NerdMiner
-// a la izquierda (así siempre se sabe en qué modo estás) y una raya debajo
-static void topRow() {
-  header("", nerd::Yellow);
+// La fila de arriba de las dos páginas: la cabecera (con el estado o el nombre
+// de la página como título), el logotipo del NerdMiner a la izquierda (así
+// siempre se sabe en qué modo estás) y una raya debajo
+static void topRow(const String& title, uint16_t color) {
+  header(title, color);
   display::logo(MINER_LOGO, 6, 25);
   display::rect(6, 74, 158, 1, ink::Line);
 }
@@ -39,50 +40,69 @@ static void topRow() {
 // Un aviso de un momento, abajo
 static void toast(const MinerView& v) {
   if (v.toast.isEmpty()) return;
-  display::roundRect(14, 270, 142, 24, v.toastColor);
-  display::roundRect(16, 272, 138, 20, ink::Card2);
-  display::text(v.toast, CX, 274, Font::Body, v.toastColor, Align::Center);
+  display::roundRect(14, 266, 142, 24, v.toastColor);
+  display::roundRect(16, 268, 138, 20, ink::Card2);
+  display::text(v.toast, CX, 270, Font::Body, v.toastColor, Align::Center);
 }
 
 // ============================================================ 1. MINANDO
 
+// La gráfica del hashrate: una línea con el área de debajo rellena. La de la
+// derecha del todo es la medida de ahora (con un puntito).
+static void hashGraph(const MinerView& v, int x0, int y0, int w, int h) {
+  float val[24], top = 1;
+  for (int i = 0; i < 24; i++) {
+    val[i] = v.history[(v.historyNext + i) % 24];
+    top = max(top, val[i]);
+  }
+  top *= 1.15f;                                             // un poco de aire por arriba
+  const uint16_t area = display::blend(ink::Bg, nerd::Yellow, 45);
+  display::rect(x0, y0 + h, w, 1, ink::Line);               // el suelo
+  int prevY = -1, y = y0 + h;
+  for (int x = 0; x < w; x++) {
+    const float pos = x * 23.0f / (w - 1);                  // entre qué dos medidas cae esta columna
+    const int i = min((int)pos, 22);
+    const float k = val[i] + (val[i + 1] - val[i]) * (pos - i);
+    y = y0 + h - 1 - (int)((h - 2) * k / top);
+    display::rect(x0 + x, y, 1, y0 + h - y, area);
+    const int from = prevY < 0 ? y : min(prevY, y), to = prevY < 0 ? y : max(prevY, y);
+    display::rect(x0 + x, from, 1, to - from + 2, nerd::Yellow);   // la línea, de 2 px
+    prevY = y;
+  }
+  display::roundRect(x0 + w - 3, y - 2, 5, 5, nerd::Yellow);
+}
+
 void minerMining(const MinerView& v) {
   const nerdminer::Stats& s = v.stats;
-  topRow();
 
-  // A la derecha del logotipo: el hashrate con sus KH/S en la misma línea, y debajo el estado
-  display::text("KH/S", 164, 38, Font::Label, ink::Dim, Align::Right);
-  display::text(String(s.khs, 1), 164 - display::textWidth("KH/S", Font::Label) - 4, 24, Font::Title, ink::Fg, Align::Right);
-  const char* state = v.paused ? "PAUSED" : !s.running ? "STARTING" : !v.online ? "NO INTERNET" : s.connected ? "MINING" : "CONNECTING";
-  const uint16_t stateColor = v.paused ? ink::Dim : !v.online ? ink::Red : s.connected ? ink::Ok : ink::Gold;
-  const int pw = display::textWidth(state, Font::Label) + 12;
-  display::roundRect(164 - pw, 55, pw, 13, stateColor);
-  display::text(state, 164 - pw / 2, 58, Font::Label, ink::Bg, Align::Center);
+  // El estado va de título en la cabecera
+  const char* state = !s.running ? "STARTING" : !v.online ? "NO INTERNET" : s.connected ? "MINING" : "CONNECTING";
+  const uint16_t stateColor = !v.online ? ink::Red : s.connected ? ink::Ok : ink::Gold;
+  topRow(state, stateColor);
 
-  // La gráfica del hashrate: la barra de la derecha es la de ahora
-  float top = 1;
-  for (int i = 0; i < 24; i++) top = max(top, v.history[i]);
-  for (int i = 0; i < 24; i++) {
-    const float k = v.history[(v.historyNext + i) % 24];
-    const int h = (int)(30 * k / top);
-    display::rect(14 + i * 6, 116 - h, 4, h, i == 23 ? nerd::Yellow : nerd::YellowDark);
-  }
+  // A la derecha del logotipo: el hashrate, con su nombre encima y los KH/S al lado
+  display::text("HASHRATE", 164, 28, Font::Label, ink::Dim, Align::Right);
+  const int unitW = display::textWidth("KH/S", Font::Label);
+  display::text(String(s.khs, 1), 164 - unitW - 4, 38, Font::Title, ink::Fg, Align::Right);
+  display::text("KH/S", 164, 52, Font::Label, ink::Dim, Align::Right);
+
+  hashGraph(v, 10, 84, 150, 38);
 
   // Los números: los shares son los que acepta el pool (los mismos que enseña su web)
   const uint32_t min = s.minedMs / 60000;
   const String time = min >= 60 ? String(min / 60) + "h " + String(min % 60) + "m" : String(min) + " min";
-  display::roundRect(6, 126, 158, 120, ink::Card);
-  display::text("Shares", 14, 130, Font::Body, ink::Dim);
-  display::text(String(s.accepted), 156, 130, Font::Body, ink::Fg, Align::Right);
-  display::text("Best diff", 14, 148, Font::Body, ink::Dim);
-  display::text(shortNumber(s.bestDiff), 156, 148, Font::Body, ink::Gold, Align::Right);
-  display::text("Pool diff", 14, 166, Font::Body, ink::Dim);
-  display::text(s.poolDiff > 0 ? shortNumber(s.poolDiff) : String("--"), 156, 166, Font::Body, ink::Fg, Align::Right);
-  display::text("Time", 14, 184, Font::Body, ink::Dim);
-  display::text(time, 156, 184, Font::Body, ink::Fg, Align::Right);
-  display::text("Blocks", 14, 202, Font::Body, s.blocks ? ink::Ok : ink::Dim);
-  display::text(String(s.blocks), 156, 202, Font::Body, s.blocks ? ink::Ok : ink::Fg, Align::Right);
-  display::text(display::fit(miner::pool(), 146, Font::Label), CX, 226, Font::Label, ink::Dim, Align::Center);
+  display::roundRect(6, 134, 158, 120, ink::Card);
+  display::text("Shares", 14, 138, Font::Body, ink::Dim);
+  display::text(String(s.accepted), 156, 138, Font::Body, ink::Fg, Align::Right);
+  display::text("Best diff", 14, 156, Font::Body, ink::Dim);
+  display::text(shortNumber(s.bestDiff), 156, 156, Font::Body, ink::Gold, Align::Right);
+  display::text("Pool diff", 14, 174, Font::Body, ink::Dim);
+  display::text(s.poolDiff > 0 ? shortNumber(s.poolDiff) : String("--"), 156, 174, Font::Body, ink::Fg, Align::Right);
+  display::text("Time", 14, 192, Font::Body, ink::Dim);
+  display::text(time, 156, 192, Font::Body, ink::Fg, Align::Right);
+  display::text("Blocks", 14, 210, Font::Body, s.blocks ? ink::Ok : ink::Dim);
+  display::text(String(s.blocks), 156, 210, Font::Body, s.blocks ? ink::Ok : ink::Fg, Align::Right);
+  display::text(display::fit(miner::pool(), 146, Font::Label), CX, 234, Font::Label, ink::Dim, Align::Center);
 
   toast(v);
   pageDots(0);
@@ -97,7 +117,7 @@ static void datum(int y, const char* label, const String& value, uint16_t color 
 }
 
 void minerBitcoin(const MinerView& v, const btcinfo::Info& info) {
-  topRow();
+  topRow("BITCOIN", ink::Orange);
 
   if (!info.valid) {
     centeredLines(v.online ? "Asking mempool.space..." : "No internet: set a WiFi in badge.local.", 130, 150, 3, 16, ink::Soft);
@@ -109,8 +129,8 @@ void minerBitcoin(const MinerView& v, const btcinfo::Info& info) {
   // El precio, a la derecha del logotipo (si no cabe en grande, en la letra normal)
   const String price = "$" + thousands(info.priceUsd);
   const Font priceFont = display::textWidth(price, Font::Title) <= 94 ? Font::Title : Font::Body;
-  display::text(price, 164, priceFont == Font::Title ? 24 : 32, priceFont, ink::Orange, Align::Right);
-  display::text("BTC / USD", 164, 56, Font::Label, ink::Dim, Align::Right);
+  display::text("BTC / USD", 164, 28, Font::Label, ink::Dim, Align::Right);
+  display::text(price, 164, priceFont == Font::Title ? 38 : 44, priceFont, ink::Orange, Align::Right);
 
   // Los datos, a la izquierda
   datum(82,  "BLOCK", thousands(info.height));
