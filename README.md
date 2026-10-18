@@ -84,6 +84,18 @@ escuchando; gris, que está conectando.
 
 Para probar sin internet: `J` seguido del mensaje del relay en una línea (ver `tools/`).
 
+## Monedero LNbits
+
+Cada badge puede llevar su monedero LNbits (`net/lnbits`): su dirección Lightning sale en el QR, y por un websocket
+con el servidor se entera al momento de cada pago (normal o zap de Nostr a su dirección) y lo celebra. El badge solo
+tiene la clave de lectura. En STATS, PEER largo abre WITHDRAW: el QR de retirada (LNURL-withdraw) de ese monedero,
+detrás de un aviso. Si un mismo pago llega por LNbits y por Nostr, sale una sola vez (se reconoce por la factura).
+
+- Grabar un badge: `py tools/grabar_badge.py COM67 42` (crea el monedero, la dirección y el enlace de retirada, y lo
+  graba con los comandos serie `n`, `L` y `W`). Necesita `tools/.env` (ver `tools/.env.ejemplo`). **Sin probar aún
+  contra el LNbits de verdad.**
+- Probar sin servidor: `py tools/lnbits_falso.py 5055` imita a LNbits; `/pagar` y `/zap` lanzan pagos de prueba.
+
 ## Seed Lab
 
 Para aprender cómo nace una semilla. Se elige dado (50 o 99 tiradas) o moneda (128 o 256), 12 o 24 palabras, y se

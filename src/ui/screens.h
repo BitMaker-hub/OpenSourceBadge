@@ -51,6 +51,7 @@ void handshakeFound(const Peer& other, uint32_t t);
 void handshakeMining(const String* hashes, int count, uint8_t progress, uint32_t nonce);
 void handshakeMined(const Peer& other);
 void handshakeNotFound();
+void withdraw(const String& accessUrl, int32_t balanceSats, bool showQr);
 
 // Peer cercano
 void nearbyBanner(const nearby::Neighbor& n, bool alreadyPeer);       // aviso abajo, encima de la página

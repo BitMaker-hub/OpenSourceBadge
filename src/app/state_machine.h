@@ -22,7 +22,8 @@
 //      MODE largo  -> SETUP (WiFi y badge.local), y MODE vuelve
 //      SEED corto  -> SEED_LAB, y SEED vuelve
 //      SEED largo  -> HARDWARE_TEST (prueba de placa)
-//    Un zap que llega -> ZAP, y vuelve solo a los 6 s
+//    Un zap o un pago que llega (Nostr o LNbits) -> ZAP, y vuelve solo a los 6 s
+//    En STATS, PEER largo -> WITHDRAW (sacar los sats del monedero del badge)
 //    Otro badge que nos invita (pulsó PEER a nuestro lado) -> INVITE:
 //      PEER acepta (-> HANDSHAKE), MODE la ignora
 //
@@ -44,6 +45,7 @@ enum class State : uint8_t {
   Handshake,
   Invite,          // otro badge nos invita a hacer handshake
   Zap,
+  Withdraw,        // sacar los sats del monedero LNbits (QR del monedero, con aviso)
   SeedLab,
   Setup,
   HardwareTest,

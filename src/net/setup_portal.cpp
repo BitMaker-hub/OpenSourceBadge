@@ -3,6 +3,7 @@
 #include "../app/badge.h"
 #include "../ui/avatars.h"
 #include "../app/storage.h"
+#include "lnbits.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
@@ -57,6 +58,7 @@ static void sendProfile() {
   String ssid, password;
   storage::loadNetwork(ssid, password);
   body += ",\"wifi\":" + json(ssid);
+  body += ",\"wallet\":" + json(lnbits::address());
   body += ",\"wifiSaved\":" + String(password.length() ? "true" : "false");
   body += ",\"roles\":" + roles + "}";
   server.send(200, "application/json", body);

@@ -145,11 +145,15 @@ uint8_t decentralization() {
 
 String socialHash() { return String(block * 0.033f, 1); }
 
+static String walletAddress;
+void setWalletAddress(const String& a) { walletAddress = a; }
+String lightningAddress() { return profile.lightning.length() ? profile.lightning : walletAddress; }
+
 int qrItems(QrItem* out) {
   int n = 0;
-  if (profile.lightning.length())
-    out[n++] = {QrKind::Lightning, "LN", "LIGHTNING", "lightning:" + profile.lightning,
-                "ZAP ME", profile.lightning, ink::Gold};
+  const String ln = lightningAddress();
+  if (ln.length())
+    out[n++] = {QrKind::Lightning, "LN", "LIGHTNING", "lightning:" + ln, "ZAP ME", ln, ink::Gold};
   if (profile.npub.length() > 16)
     out[n++] = {QrKind::Nostr, "NOSTR", "NOSTR", "nostr:" + profile.npub, "FOLLOW ON NOSTR",
                 profile.npub.substring(0, 10) + ".." + profile.npub.substring(profile.npub.length() - 6), ink::Nostr};

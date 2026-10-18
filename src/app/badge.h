@@ -64,6 +64,7 @@ struct Zap {
   String   from;
   String   via;          // "Nostr" o "Lightning"
   String   message;
+  String   id;           // la factura: el mismo pago puede llegar por LNbits y por Nostr
 };
 
 namespace badge {
@@ -98,6 +99,8 @@ uint8_t       decentralization();     // 0..99, cuantos más roles distintos, m�
 String        socialHash();           // "1.4"
 
 int           qrItems(QrItem* out);   // la lista de QR según lo que haya configurado
+void          setWalletAddress(const String& address);   // la dirección del monedero LNbits del badge
+String        lightningAddress();     // la que sale en el QR: la del dueño si puso una, si no la del badge
 
 // ---- hora ----
 // El badge no tiene reloj con pila: la hora la pone el móvil al configurar o

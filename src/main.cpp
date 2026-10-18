@@ -28,6 +28,7 @@
 #include "net/nostr_zaps.h"
 #include "net/radio.h"
 #include "net/nearby.h"
+#include "net/lnbits.h"
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 
@@ -40,6 +41,7 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   Ycampo=valor = cambiar el perfil: name, role (DEV, MINER, PLEB, WHALE, NOSTRICH, ANON), handle, tagline
 //   Nnpub1...  = cambiar el npub del perfil (y Nostr empieza a escuchar ese)
 //   Wred|clave = guardar la WiFi con internet para los zaps
+//   Lurl|inkey|direccion|acceso = grabar el monedero LNbits del badge (fábrica)
 //   i          = estado: perfil, WiFi de internet y Nostr
 //   Z          = poner a cero el contador de sats recibidos
 //   X          = borrar perfil y peers (dejarlo como nuevo)
@@ -102,6 +104,21 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("WiFi guardada: %s\n", ssid.c_str());
       return ButtonEvent::None;
     }
+    case 'L': {
+      // url|inkey|dirección|enlace de acceso, separados por |
+      String parts[4];
+      String line = Serial.readStringUntil('\n');
+      line.trim();
+      for (int i = 0, from = 0; i < 4; i++) {
+        const int bar = line.indexOf('|', from);
+        parts[i] = bar < 0 ? line.substring(from) : line.substring(from, bar);
+        from = bar < 0 ? line.length() : bar + 1;
+      }
+      lnbits::configure(parts[0], parts[1], parts[2], parts[3]);
+      badge::setWalletAddress(parts[2]);
+      Serial.printf("Monedero: %s en %s\n", parts[2].c_str(), parts[0].c_str());
+      return ButtonEvent::None;
+    }
     case 'i': {
       String ssid, password;
       storage::loadNetwork(ssid, password);
@@ -114,6 +131,8 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("  Radio: %s, canal %u, %d badges cerca\n", RADIO[(int)radio::status()], nearby::channel(), nearby::count());
       const nearby::Neighbor* n = nearby::closest();
       if (n) Serial.printf("  Pegado: #%03u %s (%d dBm)\n", n->number, n->name, n->rssi);
+      static const char* const LN[] = {"sin monedero", "sin internet", "conectando", "escuchando"};
+      Serial.printf("  LNbits: %s, %s, saldo %ld sats\n", LN[(int)lnbits::status()], lnbits::address().c_str(), (long)lnbits::balanceSats());
       return ButtonEvent::None;
     }
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;

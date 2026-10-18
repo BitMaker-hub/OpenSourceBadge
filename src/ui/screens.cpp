@@ -8,6 +8,7 @@
 #include "../hardware/power.h"
 #include "../net/setup_portal.h"
 #include "../net/nostr_zaps.h"
+#include "../net/lnbits.h"
 
 namespace screens {
 
@@ -170,8 +171,11 @@ void stats() {
   display::roundRect(6, 224, 158, 58, ink::Card);
   display::text("Social hash", 14, 228, Font::Body, ink::Dim);
   display::text(badge::socialHash() + " TH", 158, 228, Font::Body, ink::Gold, Align::Right);
-  display::text("Zaps", 14, 245, Font::Body, ink::Dim);
-  display::text(thousands(badge::satsReceived()) + " sats", 158, 245, Font::Body, ink::Gold, Align::Right);
+  // Con monedero LNbits se enseña lo que hay de verdad; si no, lo recibido por zaps
+  const int32_t walletSats = lnbits::balanceSats();
+  display::text(walletSats >= 0 ? "Wallet" : "Zaps", 14, 245, Font::Body, ink::Dim);
+  display::text(thousands(walletSats >= 0 ? walletSats : badge::satsReceived()) + " sats", 158, 245, Font::Body, ink::Gold, Align::Right);
+  if (walletSats >= 0) display::text("HOLD PEER TO WITHDRAW", CX, 290, Font::Label, ink::Gold, Align::Center);
   display::text("Battery", 14, 262, Font::Body, ink::Dim);
   display::text(power::usbConnected() ? String("USB") : String(power::batteryPercent()) + "%",
                 158, 262, Font::Body, ink::Fg, Align::Right);
@@ -302,7 +306,10 @@ void zap(const Zap& z, uint32_t t) {
     display::roundRect(10, 212, 150, 42, ink::Card);
     centeredLines("\"" + z.message + "\"", 216, 140, 2, 16, ink::Soft);
   }
-  display::text("Total " + thousands(badge::satsReceived()) + " sats", CX, 284, Font::Body, ink::Dim, Align::Center);
+  // Con monedero LNbits, lo que hay en él; si no, lo recibido por zaps
+  const int32_t wallet = lnbits::balanceSats();
+  display::text((wallet >= 0 ? "Wallet " + thousands(wallet) : "Total " + thousands(badge::satsReceived())) + " sats",
+                CX, 284, Font::Body, ink::Dim, Align::Center);
 }
 
 // ============================================================ HANDSHAKE
@@ -363,6 +370,26 @@ void handshakeMined(const Peer& other) {
   display::text("+1 peer", CX, 224, Font::Title, ink::Orange, Align::Center);
   display::text("Contact saved", CX, 254, Font::Body, ink::Dim, Align::Center);
   display::text("Nostr - X - Zaps", CX, 270, Font::Body, ink::Dim, Align::Center);
+}
+
+// ============================================================ WITHDRAW
+
+void withdraw(const String& accessUrl, int32_t balanceSats, bool showQr) {
+  header("WITHDRAW", ink::Gold);
+  display::text(balanceSats >= 0 ? thousands(balanceSats) + " sats" : String("-- sats"), CX, 24, Font::Title, ink::Gold, Align::Center);
+  if (!showQr) {
+    display::roundRect(6, 64, 158, 120, rgb(0x2A1416));
+    centeredLines("This QR opens your badge wallet.", 70, 146, 2, 16, ink::Red);
+    centeredLines("Anyone who scans it can spend your sats. Scan it only with your own phone.",
+                  106, 146, 5, 16, rgb(0xE6A5A5));
+    display::roundRect(18, 204, 134, 24, ink::Gold);
+    display::text("PEER  show QR", CX, 208, Font::Body, ink::Bg, Align::Center);
+    display::text("MODE  back", CX, 240, Font::Body, ink::Dim, Align::Center);
+    return;
+  }
+  display::qr(accessUrl, CX, 60, 166);
+  centeredLines("Open it on your phone and send the sats to your own wallet.", 236, 154, 3, 16, ink::Soft);
+  display::text("PEER hide - MODE back", CX, 296, Font::Body, ink::Dim, Align::Center);
 }
 
 // ============================================================ PEER CERCANO

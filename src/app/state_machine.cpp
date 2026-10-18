@@ -12,6 +12,7 @@
 #include "../net/nostr_zaps.h"
 #include "../net/nearby.h"
 #include "../net/radio.h"
+#include "../net/lnbits.h"
 #include "seed_lab.h"
 
 namespace app {
@@ -46,6 +47,7 @@ const char* stateName(State s) {
     case State::Handshake:    return "HANDSHAKE";
     case State::Invite:       return "INVITE";
     case State::Zap:          return "ZAP";
+    case State::Withdraw:     return "WITHDRAW";
     case State::SeedLab:      return "SEED_LAB";
     case State::Setup:        return "SETUP";
     case State::HardwareTest: return "HARDWARE_TEST";
@@ -169,6 +171,8 @@ static void peers(ButtonEvent ev, uint32_t t) {
 }
 
 static void stats(ButtonEvent ev, uint32_t t) {
+  // Aquí PEER largo no es el QR grande: es sacar los sats (si el badge tiene monedero)
+  if (ev == ButtonEvent::PeerLong && lnbits::accessUrl().length()) return go(State::Withdraw);
   if (homeButtons(ev)) return;
   idleLeds(t);
   screens::stats();
@@ -333,12 +337,26 @@ void simulateZap() {
   if (state != State::HardwareTest) showZap(badge::nextDemoZap());
 }
 
-// Los zaps de Nostr solo interrumpen las páginas de inicio u otro zap; si estás
-// configurando o en un handshake, esperan en la cola a que termines
-static void checkNostrZaps() {
+// Los zaps llegan por dos sitios: Nostr (recibos en los relays) y LNbits (pagos
+// al monedero del badge). Si el dueño puso la dirección del badge en su perfil de
+// Nostr, el mismo pago llega por los dos: se reconoce por la factura y sale una vez.
+static String recentIds[6];
+static int    recentNext = 0;
+
+static bool alreadyShown(const String& id) {
+  if (id.isEmpty()) return false;
+  for (const String& r : recentIds) if (r == id) return true;
+  recentIds[recentNext] = id;
+  recentNext = (recentNext + 1) % 6;
+  return false;
+}
+
+// Solo interrumpen las páginas de inicio u otro zap; si estás configurando o en
+// un handshake, esperan en la cola a que termines
+static void checkZaps() {
   if (!isHomePage(state) && state != State::Zap) return;
   Zap z;
-  if (nostrzaps::nextZap(z)) showZap(z);
+  if ((nostrzaps::nextZap(z) || lnbits::nextZap(z)) && !alreadyShown(z.id)) showZap(z);
 }
 
 static void zap(ButtonEvent ev, uint32_t t) {
@@ -347,6 +365,21 @@ static void zap(ButtonEvent ev, uint32_t t) {
   effects::trail(groups::BTopToBottom, colors::Gold, 6, 45, t, colors::Cream);   // estela: como mucho 6 encendidos
   effects::solid(groups::Rx, colors::Gold);
   screens::zap(zapShown, t);
+}
+
+// ============================================================ WITHDRAW
+//
+// El QR del monedero LNbits del badge: quien lo escanee puede gastar los sats.
+// Por eso primero un aviso, y el QR solo si se vuelve a pulsar PEER.
+
+static bool withdrawShowQr = false;
+
+static void withdraw(ButtonEvent ev, uint32_t t) {
+  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::ModeLong || t > 60000) return go(State::Stats);
+  if (ev == ButtonEvent::PeerShort) withdrawShowQr = !withdrawShowQr;
+
+  effects::breathe(groups::B, colors::Gold, 2400, t);
+  screens::withdraw(lnbits::accessUrl(), lnbits::balanceSats(), withdrawShowQr);
 }
 
 // ============================================================ SEED LAB
@@ -460,6 +493,8 @@ void begin() {
   radio::begin();
   nearby::begin();
   nostrzaps::begin();
+  lnbits::begin();
+  badge::setWalletAddress(lnbits::address());
   // SEED pulsado al encender: directo a la prueba de placa
   if (digitalRead(PIN_BTN_SEED) == LOW) go(State::HardwareTest);
   else go(State::Boot);
@@ -480,6 +515,7 @@ static void onEnter(State s) {
     case State::Setup:   nearby::stop(); radio::exclusive(true); setupSavedAt = 0; portal::start(); break;
     case State::SeedLab: nearby::stop(); radio::exclusive(true); seedlab::start(); break;   // radio apagada
     case State::HardwareTest: startHardwareTest(); break;
+    case State::Withdraw:     withdrawShowQr = false; break;
     default:                                       break;   // el resto no prepara nada
   }
 }
@@ -513,6 +549,7 @@ static void runState(ButtonEvent ev) {
     case State::Handshake:    handshake(ev, t);    break;
     case State::Invite:       invite(ev, t);       break;
     case State::Zap:          zap(ev, t);          break;
+    case State::Withdraw:     withdraw(ev, t);     break;
     case State::SeedLab:      seedLab(ev, t);      break;
     case State::Setup:        setupMode(ev, t);    break;
     case State::HardwareTest: hardwareTest(ev, t); break;
@@ -520,7 +557,7 @@ static void runState(ButtonEvent ev) {
 }
 
 void update(ButtonEvent ev) {
-  checkNostrZaps();
+  checkZaps();
   checkInvites();
   const State before = state;
   runState(ev);

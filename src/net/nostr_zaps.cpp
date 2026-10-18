@@ -22,6 +22,7 @@ struct ZapMessage {
   uint32_t amount;
   char from[40];
   char message[120];
+  char id[64];          // principio de la factura, para no repetir el pago si llega también por LNbits
 };
 
 // ---- configuración ----
@@ -91,6 +92,7 @@ static void onZapReceipt(JsonObject event, int relay) {
   if (deserializeJson(request, description)) return;
 
   ZapMessage z = {};
+  copy(z.id, invoice, sizeof z.id);
   z.amount = bolt11Sats(invoice);
   if (z.amount == 0) {
     for (JsonArray tag : request["tags"].as<JsonArray>())
@@ -231,6 +233,7 @@ bool nextZap(Zap& z) {
   z.from = m.from;
   z.via = "Nostr";
   z.message = m.message;
+  z.id = m.id;
   return true;
 }
 

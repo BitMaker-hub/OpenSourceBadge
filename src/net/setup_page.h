@@ -68,7 +68,7 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   <input id="npub" maxlength="63" placeholder="npub1..." autocapitalize="off" spellcheck="false">
   <label for="ln">Lightning address</label>
   <input id="ln" maxlength="60" placeholder="you@wallet.com" autocapitalize="off" spellcheck="false">
-  <div class="hint">People can zap you by scanning the QR on your badge.</div>
+  <div class="hint" id="lnhint">People can zap you by scanning the QR on your badge.</div>
   <label for="tagline">Your line</label>
   <input id="tagline" maxlength="40" placeholder="Stay humble, stack sats">
 
@@ -118,6 +118,10 @@ fetch("/api/profile").then(r => r.json()).then(p => {
   });
   ["name", "handle", "npub", "ln", "tagline"].forEach(k => { $(k).value = p[k] || ""; $(k).oninput = refresh; });
   $("wifi").value = p.wifi || "";
+  if (p.wallet) {
+    $("ln").placeholder = p.wallet;
+    $("lnhint").textContent = "Leave it empty to use your badge wallet (" + p.wallet + "). It lights up with every payment.";
+  }
   $("wifipass").placeholder = p.wifiSaved ? "Saved (leave empty to keep it)" : "";
   pick(p.role);
   refresh();
