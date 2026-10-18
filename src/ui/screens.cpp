@@ -405,23 +405,28 @@ void miner(const nerdminer::Stats& s, const float* history, int historyNext, boo
     display::rect(14 + i * 6, 116 - h, 4, h, i == 23 ? ink::Orange : rgb(0x6A4312));
   }
 
-  // Números
-  display::roundRect(6, 124, 158, 92, ink::Card);
-  display::text("Shares", 14, 128, Font::Body, ink::Dim);
-  display::text(String(s.shares), 158, 128, Font::Body, ink::Fg, Align::Right);
-  display::text("Best diff", 14, 146, Font::Body, ink::Dim);
-  display::text(shortNumber(s.bestDiff), 158, 146, Font::Body, ink::Gold, Align::Right);
-  display::text("Blocks", 14, 164, Font::Body, ink::Dim);
-  display::text(String(s.blocks), 158, 164, Font::Body, s.blocks ? ink::Ok : ink::Fg, Align::Right);
-  display::text("Jobs", 14, 182, Font::Body, ink::Dim);
-  display::text(String(s.templates), 158, 182, Font::Body, ink::Fg, Align::Right);
-  display::text(display::fit(miner::pool(), 150, Font::Label), CX, 202, Font::Label, ink::Dim, Align::Center);
+  // Números: los shares que ha aceptado el pool (los mismos que enseña su web),
+  // la mejor dificultad del badge frente a la que pide el pool, y cuánto lleva
+  const uint32_t min = s.minedMs / 60000;
+  const String time = min >= 60 ? String(min / 60) + "h " + String(min % 60) + "m" : String(min) + " min";
+  display::roundRect(6, 122, 158, 112, ink::Card);
+  display::text("Shares", 14, 126, Font::Body, ink::Dim);
+  display::text(String(s.accepted), 158, 126, Font::Body, ink::Fg, Align::Right);
+  display::text("Best diff", 14, 144, Font::Body, ink::Dim);
+  display::text(shortNumber(s.bestDiff), 158, 144, Font::Body, ink::Gold, Align::Right);
+  display::text("Pool diff", 14, 162, Font::Body, ink::Dim);
+  display::text(s.poolDiff > 0 ? shortNumber(s.poolDiff) : String("--"), 158, 162, Font::Body, ink::Fg, Align::Right);
+  display::text("Time", 14, 180, Font::Body, ink::Dim);
+  display::text(time, 158, 180, Font::Body, ink::Fg, Align::Right);
+  display::text("Blocks", 14, 198, Font::Body, ink::Dim);
+  display::text(String(s.blocks), 158, 198, Font::Body, s.blocks ? ink::Ok : ink::Fg, Align::Right);
+  display::text(display::fit(miner::pool(), 150, Font::Label), CX, 220, Font::Label, ink::Dim, Align::Center);
 
   // A quién va el premio, sin engañar: de fábrica es para Bitronics
   if (miner::defaultAddress())
-    centeredLines("Mining for Bitronics. Add your address in badge.local and a block is all yours.", 226, 154, 4, 16, ink::Soft);
+    centeredLines("A block now goes to Bitronics. Set your address in badge.local.", 242, 154, 3, 16, ink::Soft);
   else
-    centeredLines("Solo mining: a lottery. If you find a block, it is all yours.", 226, 154, 3, 16, ink::Soft);
+    centeredLines("Solo mining: a lottery. If you find a block, it is all yours.", 242, 154, 3, 16, ink::Soft);
   display::text(s.running ? "PEER stop - MODE back" : "PEER start - MODE back", CX, 300, Font::Body, ink::Dim, Align::Center);
 }
 

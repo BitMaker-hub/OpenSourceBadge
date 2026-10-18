@@ -149,6 +149,7 @@ static void stopSocket() {
   if (!socketStarted) return;
   socket.disconnect();
   socketStarted = false;
+  radio::busy(radio::User::Lnbits, false);
 }
 
 static void task(void*) {
@@ -158,6 +159,7 @@ static void task(void*) {
     if (!radio::online()) { stopSocket(); state = Status::NoInternet; vTaskDelay(pdMS_TO_TICKS(200)); continue; }
 
     if (!socketStarted) {
+      radio::busy(radio::User::Lnbits, true);
       fetchBalance();
       const String path = basePath + "/api/v1/ws/" + inkey;
       if (tls) socket.beginSSL(host.c_str(), port, path.c_str());

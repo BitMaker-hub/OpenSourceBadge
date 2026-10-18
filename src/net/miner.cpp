@@ -47,7 +47,8 @@ static String stratumUser() {
 bool     enabled() { return on; }
 
 bool start() {
-  nerdminer::start({poolHost, poolPort, stratumUser(), "x"}, radio::online);
+  nerdminer::start({poolHost, poolPort, stratumUser(), "x"}, radio::online,
+                   [](bool open) { radio::busy(radio::User::Miner, open); });
   on = true;
   prefs.putBool("m_on", true);
   Serial.printf("[miner] minando en %s:%u para %s\n", poolHost.c_str(), poolPort, btcAddress.c_str());

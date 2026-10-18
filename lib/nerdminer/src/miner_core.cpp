@@ -25,11 +25,14 @@ namespace nerdminer {
 // ---------------------------------------------------------------- estado (badge: en vez de Settings y mMonitor)
 static Config        cfg;
 static bool        (*isOnline)() = nullptr;
+static void        (*socketOpen)(bool) = nullptr;   // badge: para que net/radio sepa cuándo puede apagar la WiFi
 static volatile bool wantRunning = false;
 static bool          tasksStarted = false;
 
 static volatile uint32_t hashes = 0;          // se va sumando; stats() lo convierte en kH/s
 static volatile uint32_t shares = 0, valids = 0, templates = 0, lastShareAt = 0;
+static volatile uint32_t accepted = 0, rejected = 0, minedMs = 0;
+static volatile double   poolDiff = 0;
 static volatile double   bestDiff = 0.0;
 static volatile bool     poolReady = false;
 
@@ -101,12 +104,14 @@ static void stratumTask(void*) {
   for (;;) {
     // badge: parado o sin internet -> soltar el pool y esperar
     if (!wantRunning || !isOnline || !isOnline()) {
-      if (client.connected()) client.stop();
+      client.stop();
+      if (socketOpen) socketOpen(false);
       isMinerSuscribed = false;
       MiningJobStop(job_pool, s_submition_map);
       vTaskDelay(pdMS_TO_TICKS(500));
       continue;
     }
+    if (socketOpen) socketOpen(true);
     if (!checkPoolConnection()) {
       MiningJobStop(job_pool, s_submition_map);
       vTaskDelay(pdMS_TO_TICKS(10000));
@@ -184,11 +189,14 @@ static void stratumTask(void*) {
           break;
         case MINING_SET_DIFFICULTY:
           parse_mining_set_difficulty(line, currentPoolDifficulty);
+          poolDiff = currentPoolDifficulty;
           break;
         case STRATUM_SUCCESS: {
           auto it = s_submition_map.find(parse_extract_id(line));
           if (it != s_submition_map.end()) {
-            if (it->second->is32bit) { shares++; lastShareAt = millis(); }
+            accepted++;
+            lastShareAt = millis();
+            if (it->second->is32bit) shares++;
             if (it->second->isValid) { valids++; Serial.println("[miner] ¡BLOQUE ENCONTRADO!"); }
             s_submition_map.erase(it);
           }
@@ -196,7 +204,7 @@ static void stratumTask(void*) {
         }
         case STRATUM_PARSE_ERROR: {
           auto it = s_submition_map.find(parse_extract_id(line));
-          if (it != s_submition_map.end()) s_submition_map.erase(it);
+          if (it != s_submition_map.end()) { rejected++; s_submition_map.erase(it); }
           break;
         }
         default: break;
@@ -204,6 +212,12 @@ static void stratumTask(void*) {
     }
 
     vTaskDelay(pdMS_TO_TICKS(50));
+    {
+      static uint32_t lastTick = millis();             // badge: tiempo minando con trabajo del pool
+      const uint32_t now = millis();
+      if (poolReady) minedMs += now - lastTick;
+      lastTick = now;
+    }
 
     std::list<std::shared_ptr<JobResult>> results;
     if (job_pool != 0xFFFFFFFF) {
@@ -339,9 +353,10 @@ static void hashTask(void*) {
 
 // ---------------------------------------------------------------- lo que usa el badge
 
-void start(const Config& config, bool (*online)()) {
+void start(const Config& config, bool (*online)(), void (*onSocket)(bool)) {
   cfg = config;
   isOnline = online;
+  socketOpen = onSocket;
   wantRunning = true;
   // badge: mientras mina, la tarea de reposo del núcleo 0 casi no corre y el watchdog saltaría.
   // Como en el NerdMiner original, se la quita del watchdog; al parar el minero se vuelve a poner.
@@ -377,6 +392,10 @@ Stats stats() {
   s.bestDiff = bestDiff;
   s.templates = templates;
   s.lastShareAt = lastShareAt;
+  s.accepted = accepted;
+  s.rejected = rejected;
+  s.poolDiff = poolDiff;
+  s.minedMs = minedMs;
   return s;
 }
 

@@ -12,18 +12,29 @@ static volatile bool   wantExclusive = false;
 static volatile bool   isOff = true;      // la tarea confirma que ha soltado la radio
 static volatile Status state = Status::NoNetwork;
 static volatile bool   reloadPending = false;
+static volatile bool   users[(int)User::Count] = {};   // quién tiene conexiones abiertas
+
+static bool anyUser() {
+  for (int i = 0; i < (int)User::Count; i++)
+    if (users[i]) return true;
+  return false;
+}
 
 static void task(void*) {
   uint32_t lastTry = 0;
   for (;;) {
     // EXCLUSIVO: soltar la WiFi y apagar
     if (wantExclusive) {
+      state = Status::Exclusive;   // online() ya dice que no: cada uno cierra lo suyo
       if (!isOff) {
+        // Esperar a que todos hayan cerrado sus conexiones antes de apagar
+        const uint32_t start = millis();
+        while (anyUser() && millis() - start < 4000) vTaskDelay(pdMS_TO_TICKS(20));
+        if (anyUser()) Serial.println("[radio] aviso: alguien no ha cerrado a tiempo, apago igual");
         WiFi.disconnect(true);
         WiFi.mode(WIFI_OFF);
         isOff = true;
       }
-      state = Status::Exclusive;
       vTaskDelay(pdMS_TO_TICKS(50));
       continue;
     }
@@ -70,12 +81,14 @@ void exclusive(bool on) {
   wantExclusive = on;
   if (on) {
     const uint32_t start = millis();
-    while (!isOff && millis() - start < 3000) delay(10);
+    while (!isOff && millis() - start < 6000) delay(10);
   }
 }
 
 Status status()   { return state; }
 bool online()     { return state == Status::Online; }
 bool hasNetwork() { return !ssid.isEmpty(); }
+
+void busy(User who, bool open) { users[(int)who] = open; }
 
 }  // namespace radio

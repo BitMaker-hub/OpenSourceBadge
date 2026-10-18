@@ -52,6 +52,21 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   q          = escribir los QR del badge con '#' y '.' para comprobarlos
 static bool screenshotPending = false;
 
+// Por qué se reinició la última vez. Si fue un fallo ("panic"), el volcado queda
+// en la partición coredump y se lee con esptool + esp-coredump (ver README).
+static const char* resetReason() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:  return "encendido normal";
+    case ESP_RST_SW:       return "reinicio por software";
+    case ESP_RST_PANIC:    return "FALLO (panic)";
+    case ESP_RST_INT_WDT:  return "FALLO (watchdog de interrupciones)";
+    case ESP_RST_TASK_WDT: return "FALLO (watchdog de tareas)";
+    case ESP_RST_WDT:      return "FALLO (watchdog)";
+    case ESP_RST_BROWNOUT: return "BAJADA DE TENSIÓN";
+    default:               return "otro";
+  }
+}
+
 static ButtonEvent readSerialCommand() {
   if (!Serial.available()) return ButtonEvent::None;
   switch (Serial.read()) {
@@ -152,8 +167,11 @@ static ButtonEvent readSerialCommand() {
       static const char* const LN[] = {"sin monedero", "sin internet", "conectando", "escuchando"};
       Serial.printf("  LNbits: %s, %s, saldo %ld sats\n", LN[(int)lnbits::status()], lnbits::address().c_str(), (long)lnbits::balanceSats());
       const nerdminer::Stats ms = miner::stats();
-      Serial.printf("  Minero: %s, %s, %.1f kH/s, %lu shares, mejor %.4f, %lu trabajos\n", miner::enabled() ? "encendido" : "apagado",
-                    ms.connected ? "con trabajo" : "sin trabajo", ms.khs, (unsigned long)ms.shares, ms.bestDiff, (unsigned long)ms.templates);
+      Serial.printf("  Minero: %s, %s, %.1f kH/s, %lu shares aceptados (%lu de 32 bits, %lu rechazados), mejor %.4f, pool pide %.4f, %lu trabajos\n",
+                    miner::enabled() ? "encendido" : "apagado", ms.connected ? "con trabajo" : "sin trabajo", ms.khs,
+                    (unsigned long)ms.accepted, (unsigned long)ms.shares, (unsigned long)ms.rejected, ms.bestDiff, ms.poolDiff,
+                    (unsigned long)ms.templates);
+      Serial.printf("  Encendido hace %lu min; último reinicio: %s\n", millis() / 60000, resetReason());
       return ButtonEvent::None;
     }
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;
@@ -179,6 +197,7 @@ void setup() {
   display::begin();
   app::begin();
   Serial.println("Open Source Badge listo. Teclas: p m s (P M S largas), z zap, d demo, n042 numero, X borrar");
+  Serial.printf("Último reinicio: %s\n", resetReason());
 }
 
 void loop() {

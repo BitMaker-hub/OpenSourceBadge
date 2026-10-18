@@ -104,7 +104,11 @@ arrancar/parar). `net/miner` lo envuelve con el pool y la dirección (en `badge.
 `Gpool|puerto|direccion`; `g` enciende/apaga). Se entra desde LAB (SEED). Si estaba minando, sigue al encender, y
 cuando la radio está en exclusivo (handshake, SETUP, Seed Lab) espera y sigue solo.
 
-- Unos **143 kH/s** en public-pool.io, a la vez que escucha Nostr y LNbits.
+- **De fábrica** mina en `pool.bitronics.store:3334` (el pool de NerdMiners de Bitronics) para la dirección de
+  Bitronics, worker `nerdminerBadge`: se mina sin configurar nada. Con una dirección propia en `badge.local`, el
+  premio es del dueño; la pantalla dice siempre a quién va.
+- Unos **140 kH/s**, a la vez que escucha Nostr y LNbits. "Shares" son los que acepta el pool (los mismos que
+  enseña su web); los de 32 bits del NerdMiner original salen en el comando `i`.
 - Mientras mina se quita del watchdog la tarea de reposo del núcleo 0 (como hace el NerdMiner); al parar se vuelve a
   poner. Sin eso el chip se reiniciaba a los 5 s.
 - Gasta bastante: mejor enchufado por USB.
@@ -118,6 +122,18 @@ Seeder (las tiradas se pasan por SHA-256 como en Coldcard). Comprobado contra em
 
 Mientras dura: radio apagada, capturas por el puerto serie bloqueadas y todo borrado de la memoria al salir. Es para
 aprender: el badge tiene radio y para fondos de verdad hay que usar un dispositivo sin conexión, como el Seeder.
+
+## Si se reinicia
+
+El comando `i` dice cuánto lleva encendido y por qué se reinició la última vez. Si fue un fallo (panic), el volcado
+queda en la partición `coredump` y se lee con el ELF de esa misma compilación:
+
+    esptool.py --chip esp32s3 --port COM67 read_flash 0xFF0000 0x10000 core.bin
+    python -m esp_coredump --chip esp32s3 info_corefile -t raw -c core.bin .pio/build/badge/firmware.elf
+
+Así se encontró el fallo del 2026-10-18: al entrar en el Seed Lab la radio apagaba la WiFi mientras Nostr aún
+cerraba sus conexiones TLS. Ahora Nostr, LNbits y el minero avisan con `radio::busy()` y la radio espera a que
+todos hayan cerrado antes de apagar.
 
 ## Pendiente
 

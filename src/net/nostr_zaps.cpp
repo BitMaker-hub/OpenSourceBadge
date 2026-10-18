@@ -167,6 +167,7 @@ static void stopRelays() {
   if (!relaysStarted) return;
   for (auto& s : sockets) s.disconnect();
   relaysStarted = false;
+  radio::busy(radio::User::Nostr, false);
 }
 
 // La WiFi la lleva net/radio. Aquí solo: si hay internet y npub, escuchar en los relays.
@@ -184,6 +185,7 @@ static void task(void*) {
     }
 
     if (!relaysStarted) {
+      radio::busy(radio::User::Nostr, true);
       for (int i = 0; i < RELAY_COUNT; i++) {
         sockets[i].beginSSL(RELAYS[i].host, 443, RELAYS[i].path);
         sockets[i].onEvent([i](WStype_t type, uint8_t* payload, size_t length) { onRelayEvent(i, type, payload, length); });

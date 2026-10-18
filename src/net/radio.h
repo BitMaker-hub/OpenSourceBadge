@@ -16,6 +16,12 @@
 //
 //  La conexión a la WiFi la lleva una tarea aparte, para no congelar nunca
 //  la pantalla mientras conecta.
+//
+//  OJO al soltar la radio: quien tenga conexiones abiertas (Nostr, LNbits, el
+//  minero) tiene que cerrarlas ANTES de que se apague la WiFi. Si no, al
+//  cerrarlas después liberan buffers que el driver ya ha soltado y el chip se
+//  reinicia (pasó el 2026-10-18 con Nostr al entrar en el Seed Lab). Por eso
+//  cada uno avisa con busy() y la radio espera a que todos hayan cerrado.
 // ============================================================================
 #include <Arduino.h>
 
@@ -28,6 +34,9 @@ enum class Status : uint8_t {
   Online,        // conectado y con IP
 };
 
+// Los que abren conexiones por internet
+enum class User : uint8_t { Nostr, Lnbits, Miner, Count };
+
 void begin();
 void reloadNetwork();          // volver a leer la WiFi guardada (después de cambiarla)
 
@@ -37,5 +46,9 @@ void exclusive(bool on);
 Status status();
 bool   online();
 bool   hasNetwork();
+
+// "Tengo conexiones abiertas" (true) o "ya las he cerrado" (false).
+// Cuando online() pasa a false, cada uno cierra lo suyo y avisa.
+void busy(User who, bool open);
 
 }  // namespace radio

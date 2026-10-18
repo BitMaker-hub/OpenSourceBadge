@@ -77,9 +77,9 @@ def nerdminer(width):
 
 
 LOGOS = [
-    ("LAB_SPROUT", seeder_part((225, 245, 565, 835), 44, sprout_color)),
-    ("LAB_SEEDER_WORD", seeder_part((580, 280, 1565, 485), 84, lambda p, x, y: GREEN)),
-    ("LAB_NERDMINER", nerdminer(112)),
+    ("LAB_SPROUT", seeder_part((225, 245, 565, 835), 32, sprout_color)),
+    ("LAB_SEEDER_WORD", seeder_part((580, 280, 1565, 485), 72, lambda p, x, y: GREEN)),
+    ("LAB_NERDMINER", nerdminer(88)),
 ]
 
 

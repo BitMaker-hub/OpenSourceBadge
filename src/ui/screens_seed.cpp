@@ -191,15 +191,15 @@ void lab(int selected, bool mining) {
   // Seeder: el brote a la izquierda, la palabra SEEDER a la derecha
   int y = 50;
   labCard(y, selected == 0, lablogo::Seeder);
-  display::logo(LAB_SPROUT, 22, y + 13);
-  display::logo(LAB_SEEDER_WORD, 112 - LAB_SEEDER_WORD.width / 2, y + 32);
-  display::text("MAKE A SEED", 112, y + 62, Font::Label, selected == 0 ? lablogo::Seeder : ink::Dim, Align::Center);
+  display::logo(LAB_SPROUT, 30, y + 24);
+  display::logo(LAB_SEEDER_WORD, 108 - LAB_SEEDER_WORD.width / 2, y + 36);
+  display::text("MAKE A SEED", 108, y + 60, Font::Label, selected == 0 ? lablogo::Seeder : ink::Dim, Align::Center);
 
   // NerdMiner: su logotipo tal cual, y si está minando
   y = 162;
   labCard(y, selected == 1, lablogo::Nerd);
-  display::logo(LAB_NERDMINER, CX - LAB_NERDMINER.width / 2, y + 6);
-  display::text(mining ? "MINING NOW" : "SOLO MINING", CX, y + 89, Font::Label,
+  display::logo(LAB_NERDMINER, CX - LAB_NERDMINER.width / 2, y + 12);
+  display::text(mining ? "MINING NOW" : "SOLO MINING", CX, y + 84, Font::Label,
                 mining ? ink::Ok : (selected == 1 ? lablogo::Nerd : ink::Dim), Align::Center);
 
   keys(300, "PEER", "next", "MODE", "go", "SEED", "exit");
@@ -216,11 +216,12 @@ void seedMenu(bool coinSelected) {
     const bool coin = i == 1, on = coin == coinSelected;
     const int x = 6 + i * 82, w = 76, cx = x + w / 2;
     optionCard(x, 42, w, 132, on);
-    if (coin) pixelCoin(cx, 52, 4, true);
-    else      pixelDie(cx - 32, 54, 4, 5);
-    display::text(coin ? "Coin" : "Dice", cx, 126, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
-    display::text(coin ? "128 OR 256" : "50 OR 99", cx, 154, Font::Label, ink::Dim, Align::Center);
-    display::text(coin ? "FLIPS" : "ROLLS", cx, 163, Font::Label, ink::Dim, Align::Center);
+    // Dibujos a escala 3 (no 4) para que no toquen el borde de la tarjeta
+    if (coin) pixelCoin(cx, 56, 3, true);
+    else      pixelDie(cx - 24, 57, 3, 5);
+    display::text(coin ? "Coin" : "Dice", cx, 116, Font::Title, on ? ink::Orange : ink::Fg, Align::Center);
+    display::text(coin ? "128 OR 256" : "50 OR 99", cx, 146, Font::Label, ink::Dim, Align::Center);
+    display::text(coin ? "FLIPS" : "ROLLS", cx, 156, Font::Label, ink::Dim, Align::Center);
   }
 
   centeredLines("You make the randomness. The badge turns it into a Bitcoin seed.", 186, 154, 4, 16, ink::Soft);
