@@ -151,10 +151,12 @@ static bool capture(ButtonEvent ev, uint32_t now) {
     }
   }
 
-  // La ₿ se va llenando como una barra de progreso
+  // La ₿ se va llenando como una barra de progreso, flojita: al final son los
+  // 18 LEDs a la vez durante minutos (y el verde se ve mucho)
+  const Color soft = leds::dim(colors::Green, 70);
   const uint16_t done = source == Source::Coin ? coinBits : nRolls;
   const uint16_t total = source == Source::Coin ? bitsNeeded() : rollsNeeded();
-  effects::progress(groups::BTopToBottom, colors::Green, done * 255 / total);
+  effects::progress(groups::BTopToBottom, soft, done * 255 / total);
   if (now - lastInputAt < 150 && done > 0) {   // destello en TX (cara/tirada) o RX (cruz)
     effects::solid(source == Source::Coin && !lastWasHeads ? groups::Rx : groups::Tx, colors::Green);
   }
@@ -171,7 +173,7 @@ static bool result(ButtonEvent ev, uint32_t t) {
   // para que nadie pierda las palabras antes de haberlas apuntado
   if (ev == ButtonEvent::SeedLong && page == Page::Done) { wipe(); step = Step::Menu; return true; }
 
-  effects::breathe(groups::B, colors::Green, 3000, t);
+  effects::breathe(groups::B, leds::dim(colors::Green, 70), 3000, t);
   const int index = pageIndex() + 1, total = pageCount();
   switch (page) {
     case Page::Words1:  screens::seedMnemonic(mnemonic, 0, nWords, index, total);  break;
