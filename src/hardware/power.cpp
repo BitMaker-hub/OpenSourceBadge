@@ -17,17 +17,32 @@ bool     usbConnected()      { return usbMillivolts() > 4000; }
 uint16_t batteryMillivolts() { return analogReadMilliVolts(PIN_BATTERY_SENSE) * 2; }
 bool     charging()          { return usbConnected() && batteryMillivolts() < 4400; }
 
-uint8_t batteryPercent() {
-  // Tensión en reposo de una LiPo frente a la carga que le queda
+// Tensión en reposo de una LiPo frente a la carga que le queda
+static uint8_t percentFor(float mv) {
   static const uint16_t MV[]  = {3300, 3600, 3700, 3750, 3800, 3900, 4000, 4100, 4200};
   static const uint8_t  PCT[] = {   0,    5,   15,   25,   40,   60,   75,   90,  100};
-  const uint16_t mv = batteryMillivolts();
-
   if (mv <= MV[0]) return 0;
   for (int i = 1; i < 9; i++) {
     if (mv <= MV[i]) return PCT[i - 1] + (PCT[i] - PCT[i - 1]) * (mv - MV[i - 1]) / (MV[i] - MV[i - 1]);
   }
   return 100;
+}
+
+uint8_t batteryPercent() {
+  // Con la radio y la pantalla la lectura baila unos mV, y el número saltaba
+  // 36-37-36 sin parar. Por eso: una media lenta (una lectura cada medio
+  // segundo, que pesa 1/8) y el número solo cambia si se mueve 2 puntos o más.
+  static float    mv = 0;
+  static uint32_t lastAt = 0;
+  static uint8_t  shown = 255;
+  if (mv == 0 || millis() - lastAt >= 500) {
+    const float now = batteryMillivolts();
+    mv = mv == 0 ? now : mv + (now - mv) / 8;
+    lastAt = millis();
+  }
+  const uint8_t pct = percentFor(mv);
+  if (shown == 255 || abs((int)pct - (int)shown) >= 2 || pct == 0 || pct == 100) shown = pct;
+  return shown;
 }
 
 }  // namespace power
