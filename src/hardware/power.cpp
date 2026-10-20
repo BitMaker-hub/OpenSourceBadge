@@ -15,7 +15,7 @@ void begin() {
 uint16_t usbMillivolts()     { return analogReadMilliVolts(PIN_USB_SENSE) * 2; }
 bool     usbConnected()      { return usbMillivolts() > 4000; }
 uint16_t batteryMillivolts() { return analogReadMilliVolts(PIN_BATTERY_SENSE) * 2; }
-bool     charging()          { return usbConnected() && batteryMillivolts() < 4400; }
+bool     charging()          { return usbConnected() && batteryMillivolts() < 4650; }
 
 // Tensión en reposo de una LiPo frente a la carga que le queda
 static uint8_t percentFor(float mv) {

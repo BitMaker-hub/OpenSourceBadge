@@ -17,9 +17,10 @@ uint16_t usbMillivolts();
 bool     usbConnected();
 
 uint16_t batteryMillivolts();
-// Con USB: ¿hay una batería cargándose? Sin batería (o con el interruptor que la
-// corta), GPIO4 ve la salida del cargador, ~4,7 V; con la celda conectada, la
-// celda, que nunca pasa de 4,2 V. Por eso el corte en 4,4 V.
+// Con USB: ¿hay una batería cargándose? Medido en el #980 (2026-10-21): sin
+// batería (o con el interruptor que la corta) GPIO4 lee ~4,72 V, y cargando
+// ~4,58 V (con el cable no se lee la celda). Corte en 4,65 V; si al llenarse
+// pasa de ahí, sale "USB", que también es verdad: ya no está cargando.
 bool     charging();
 uint8_t  batteryPercent();   // aproximado, por la curva típica de una LiPo
 
