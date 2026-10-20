@@ -129,10 +129,13 @@ void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, ui
   rect(0, 17, SCREEN_W, 1, ink::Line);
   text(title, 6, 1, Font::Body, titleColor);
   int right = 143;                                   // lo que va a la izquierda de la pila
-  const bool charging = power::usbConnected();
+  const bool charging = power::charging();
   if (charging) {
     chargingBolt(right - 5, 4);
     right -= 7;
+  } else if (power::usbConnected()) {                // USB sin batería (o con el interruptor cortado)
+    text("USB", right, 5, Font::Label, ink::Dim, Align::Right);
+    right -= textWidth("USB", Font::Label);
   } else {
     const String pct = String(batteryPercent) + "%";
     text(pct, right, 1, Font::Body, ink::Dim, Align::Right);

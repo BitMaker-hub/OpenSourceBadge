@@ -174,7 +174,7 @@ static ButtonEvent readSerialCommand() {
                     (unsigned long)ms.accepted, (unsigned long)ms.shares, (unsigned long)ms.rejected, ms.bestDiff, ms.poolDiff,
                     (unsigned long)ms.templates);
       Serial.printf("  Batería: %u mV (%u %%), USB: %u mV%s\n", power::batteryMillivolts(), power::batteryPercent(),
-                    power::usbMillivolts(), power::usbConnected() ? " (cargando)" : "");
+                    power::usbMillivolts(), power::charging() ? " (cargando)" : power::usbConnected() ? " (sin batería o con el interruptor cortado)" : "");
       Serial.printf("  Encendido hace %lu min; último reinicio: %s\n", millis() / 60000, resetReason());
       return ButtonEvent::None;
     }
