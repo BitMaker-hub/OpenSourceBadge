@@ -39,7 +39,7 @@ void loop(const char* stateName) {
   if (!f) return;
   if (f.size() > MAX_BYTES) {                     // lleno: lo de antes a _old y uno nuevo
     f.close();
-    LittleFS.remove(FILE_OLD);
+    if (LittleFS.exists(FILE_OLD)) LittleFS.remove(FILE_OLD);
     LittleFS.rename(FILE_NOW, FILE_OLD);
     f = LittleFS.open(FILE_NOW, FILE_APPEND);
     if (!f) return;
@@ -53,6 +53,7 @@ void loop(const char* stateName) {
 void dump() {
   Serial.println("BATLOG arranque,segundos,bateria_mV,usb_mV,estado,radio,minando");
   for (const char* name : {FILE_OLD, FILE_NOW}) {
+    if (!LittleFS.exists(name)) continue;   // (sin esto, el sistema de ficheros se queja por el puerto)
     File f = LittleFS.open(name, "r");
     if (!f) continue;
     while (f.available()) Serial.write(f.read());
@@ -62,8 +63,8 @@ void dump() {
 }
 
 void clear() {
-  LittleFS.remove(FILE_NOW);
-  LittleFS.remove(FILE_OLD);
+  for (const char* name : {FILE_NOW, FILE_OLD})
+    if (LittleFS.exists(name)) LittleFS.remove(name);
   Serial.println("Registro de batería borrado");
 }
 
