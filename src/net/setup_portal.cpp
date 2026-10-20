@@ -55,6 +55,8 @@ static void sendProfile() {
   body += ",\"npub\":" + json(me.npub);
   body += ",\"ln\":" + json(me.lightning);
   body += ",\"tagline\":" + json(badge::isConfigured() ? me.tagline : "");
+  body += ",\"telegram\":" + json(me.telegram);
+  body += ",\"pgp\":" + json(me.pgp);
   body += ",\"role\":" + json(roleInfo(me.role).name);
   String ssid, password;
   storage::loadNetwork(ssid, password);
@@ -87,6 +89,8 @@ static void saveProfile() {
   me.lightning = ln;
 
   me.tagline = badge::clean(server.arg("tagline"), TAGLINE_LEN);
+  me.telegram = badge::cleanTelegram(server.arg("telegram"));
+  me.pgp = badge::cleanPgp(server.arg("pgp"));
   badge::saveMe();
 
   // La WiFi con internet para los zaps. Contraseña vacía con la misma red = se queda la que había.
@@ -119,6 +123,106 @@ static void saveProfile() {
   saved = true;
   Serial.printf("[portal] perfil guardado: %s (%s)\n", me.name.c_str(), roleInfo(me.role).name);
   server.send(200, "application/json", "{\"ok\":true}");
+}
+
+// ---------------------------------------------------------------- contactos
+//
+// Los peers que has conocido, con todo lo que te pasaron en el handshake. La
+// página los enseña y se pueden bajar como vCard (se importan en la agenda del
+// móvil) o como CSV (para una hoja de cálculo).
+
+// "2026-10-20 13:05" en la hora del badge, o "" si cuando os conocisteis no sabía la hora
+static String metAt(uint32_t when) {
+  if (when < 1700000000) return "";
+  const time_t t = when + storage::loadTimezone() * 60;
+  struct tm tm;
+  gmtime_r(&t, &tm);
+  char buf[20];
+  strftime(buf, sizeof buf, "%Y-%m-%d %H:%M", &tm);
+  return buf;
+}
+
+static void sendPeers() {
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "application/json", "[");
+  for (int i = 0; i < badge::peerCount(); i++) {
+    const Peer& p = badge::peer(i);
+    String o = i ? ",{" : "{";
+    o += "\"number\":" + String(p.number);
+    o += ",\"name\":" + json(p.name);
+    o += ",\"role\":" + json(roleInfo(p.role).name);
+    o += ",\"color\":" + json(hexColor(roleInfo(p.role).color));
+    o += ",\"x\":" + json(p.handle);
+    o += ",\"telegram\":" + json(p.telegram);
+    o += ",\"npub\":" + json(p.npub);
+    o += ",\"ln\":" + json(p.lightning);
+    o += ",\"pgp\":" + json(p.pgp);
+    o += ",\"block\":" + String(p.block);
+    o += ",\"met\":" + json(metAt(p.when)) + "}";
+    server.sendContent(o);
+  }
+  server.sendContent("]");
+  server.sendContent("");   // fin
+}
+
+// vCard: estos caracteres llevan barra delante
+static String vcf(const String& s) {
+  String out;
+  for (char c : s) {
+    if (c == ',' || c == ';' || c == '\\') out += '\\';
+    out += c;
+  }
+  return out;
+}
+
+static void sendVcards() {
+  server.sendHeader("Content-Disposition", "attachment; filename=\"badge-" + String(badge::number()) + "-contacts.vcf\"");
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/vcard", "");
+  for (int i = 0; i < badge::peerCount(); i++) {
+    const Peer& p = badge::peer(i);
+    const String x = p.handle.startsWith("@") ? p.handle.substring(1) : p.handle;
+    const String tg = p.telegram.startsWith("@") ? p.telegram.substring(1) : p.telegram;
+    String note = "Met at Bitcoin Amsterdam 2026 (Proof of Peer). Badge #" + String(p.number) + ", " +
+                  roleInfo(p.role).name + ", block " + String(p.block);
+    if (metAt(p.when).length()) note += ", " + metAt(p.when);
+    if (p.npub.length())      note += ". Nostr: " + p.npub;
+    if (p.lightning.length()) note += ". Lightning: " + p.lightning;
+    if (p.pgp.length())       note += ". PGP: " + p.pgp;
+    String v = "BEGIN:VCARD\r\nVERSION:3.0\r\n";
+    v += "FN:" + vcf(p.name) + "\r\n";
+    v += "N:;" + vcf(p.name) + ";;;\r\n";
+    if (x.length())  v += "X-SOCIALPROFILE;type=twitter:https://x.com/" + x + "\r\n";
+    if (x.length())  v += "URL:https://x.com/" + x + "\r\n";
+    if (tg.length()) v += "X-SOCIALPROFILE;type=telegram:https://t.me/" + tg + "\r\n";
+    if (tg.length()) v += "IMPP:x-telegram:" + tg + "\r\n";
+    v += "NOTE:" + vcf(note) + "\r\nEND:VCARD\r\n";
+    server.sendContent(v);
+  }
+  server.sendContent("");
+}
+
+// CSV: entre comillas, y las comillas de dentro, dobles
+static String csv(const String& s) {
+  String out = "\"";
+  for (char c : s) {
+    if (c == '"') out += '"';
+    out += c;
+  }
+  return out + "\"";
+}
+
+static void sendCsv() {
+  server.sendHeader("Content-Disposition", "attachment; filename=\"badge-" + String(badge::number()) + "-contacts.csv\"");
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/csv", "badge,name,role,x,telegram,nostr,lightning,pgp,block,met_at\r\n");
+  for (int i = 0; i < badge::peerCount(); i++) {
+    const Peer& p = badge::peer(i);
+    server.sendContent(String(p.number) + "," + csv(p.name) + "," + roleInfo(p.role).name + "," + csv(p.handle) + "," +
+                       csv(p.telegram) + "," + csv(p.npub) + "," + csv(p.lightning) + "," + csv(p.pgp) + "," +
+                       String(p.block) + "," + csv(metAt(p.when)) + "\r\n");
+  }
+  server.sendContent("");
 }
 
 // Las WiFi que ve el badge, de la más fuerte a la más débil, sin repetir
@@ -163,6 +267,9 @@ void start() {
   server.on("/api/profile", HTTP_POST, saveProfile);
   server.on("/avatar.svg", HTTP_GET, sendAvatar);
   server.on("/api/networks", HTTP_GET, sendNetworks);
+  server.on("/api/peers", HTTP_GET, sendPeers);
+  server.on("/contacts.vcf", HTTP_GET, sendVcards);
+  server.on("/contacts.csv", HTTP_GET, sendCsv);
   server.onNotFound(redirectToPortal);
   server.begin();
 

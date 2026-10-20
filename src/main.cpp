@@ -40,7 +40,7 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   z          = simular que llega un zap
 //   d          = cargar los datos de demo del prototipo (no se guardan)
 //   n042       = grabar el número de serie del badge (fábrica)
-//   Ycampo=valor = cambiar el perfil: name, role (DEV, MINER, PLEB, WHALE, NOSTRICH, ANON), handle, tagline
+//   Ycampo=valor = cambiar el perfil: name, role (DEV, MINER, PLEB, WHALE, NOSTRICH, ANON), handle, tagline, telegram, pgp
 //   Nnpub1...  = cambiar el npub del perfil (y Nostr empieza a escuchar ese)
 //   Wred|clave = guardar la WiFi con internet para los zaps
 //   Lurl|inkey|direccion|acceso = grabar el monedero LNbits del badge (fábrica)
@@ -97,6 +97,8 @@ static ButtonEvent readSerialCommand() {
       if (field == "role")    me.role = roleFromName(value);
       if (field == "handle")  me.handle = value.length() ? "@" + badge::clean(value, HANDLE_LEN - 1).substring(value.startsWith("@") ? 1 : 0) : "";
       if (field == "tagline") me.tagline = badge::clean(value, TAGLINE_LEN);
+      if (field == "telegram") me.telegram = badge::cleanTelegram(value);
+      if (field == "pgp")     me.pgp = badge::cleanPgp(value);
       badge::saveMe();
       Serial.printf("Perfil: %s (%s)\n", me.name.c_str(), roleInfo(me.role).name);
       return ButtonEvent::None;
@@ -156,6 +158,7 @@ static ButtonEvent readSerialCommand() {
       static const char* const NOSTR[] = {"sin configurar", "en pausa", "conectando WiFi", "conectando relay", "escuchando"};
       Serial.printf("Badge #%03u %s\n", badge::number(), badge::me().name.c_str());
       Serial.printf("  npub:  %s\n", badge::me().npub.c_str());
+      Serial.printf("  Telegram: %s, PGP: %s\n", badge::me().telegram.c_str(), badge::me().pgp.length() ? badge::me().pgp.c_str() : "(ninguna)");
       Serial.printf("  WiFi:  %s%s\n", ssid.length() ? ssid.c_str() : "(ninguna)", password.length() ? " (con contraseña)" : "");
       Serial.printf("  Nostr: %s\n", NOSTR[(int)nostrzaps::status()]);
       static const char* const RADIO[] = {"exclusiva", "sin WiFi", "conectando", "conectada"};

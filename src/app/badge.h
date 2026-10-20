@@ -14,6 +14,8 @@ constexpr int HANDLE_LEN    = 20;
 constexpr int NPUB_LEN      = 63;
 constexpr int LIGHTNING_LEN = 60;
 constexpr int TAGLINE_LEN   = 40;
+constexpr int TELEGRAM_LEN  = 32;   // usuario de Telegram, con la @
+constexpr int PGP_LEN       = 40;   // huella PGP en hexadecimal (40 cifras, sin espacios)
 
 // Los personajes que puede elegir cada uno
 enum class Role : uint8_t { Dev, Miner, Pleb, Whale, Nostrich, Anon, Count };
@@ -31,6 +33,8 @@ struct Profile {
   String npub;          // Nostr
   String lightning;     // dirección Lightning
   String tagline;
+  String telegram;      // @ de Telegram
+  String pgp;           // huella PGP (40 cifras hex), para que el otro pueda comprobar tu clave
   Role   role = Role::Anon;
 };
 
@@ -39,6 +43,8 @@ struct Peer {
   String   handle;
   String   npub;
   String   lightning;
+  String   telegram;
+  String   pgp;
   Role     role = Role::Anon;
   uint8_t  mac[6] = {};   // identifica al badge: si repetimos handshake no cuenta doble
   uint16_t number = 0;    // su número de badge
@@ -81,6 +87,8 @@ Profile&      me();
 bool          isConfigured();         // ¿ha pasado alguien ya por badge.local?
 void          saveMe();               // guarda me() después de cambiarlo
 String        wifiName();             // "BADGE-042"
+String        cleanTelegram(const String& s);   // "t.me/pepe", "@pepe" o "pepe" -> "@pepe"
+String        cleanPgp(const String& s);        // quita espacios; "" si no son 40 cifras hex
 
 // ---- peers ----
 int           peerCount();

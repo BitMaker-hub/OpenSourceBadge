@@ -42,6 +42,16 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   .chip{display:inline-block;margin-top:6px;background:var(--c,#9ca3af);color:var(--bg);font-size:10px;font-weight:700;padding:2px 6px;border-radius:2px}
   #pLine{color:var(--dim);font-size:13px;margin-top:10px;min-height:18px}
   .ok{color:#57d38c}.err{color:#f87171}
+  /* Contactos */
+  .peer{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:8px;padding:10px 12px;margin:8px 0}
+  .peer b{font-size:16px}
+  .peer .meta{font-size:12px;color:var(--dim);font-family:ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace}
+  .peer .row{font-size:13px;margin-top:3px;overflow-wrap:anywhere}
+  .peer .row span{color:var(--dim)}
+  .peer a{color:var(--or)}
+  .dl{display:flex;gap:8px;margin-top:10px}
+  .dl a{flex:1;text-align:center;padding:11px;border-radius:10px;border:1px solid var(--or);color:var(--or);text-decoration:none;font-weight:600}
+  #empty{color:var(--dim);font-size:14px}
 </style></head>
 <body><main>
   <h1>Open Source Badge</h1>
@@ -71,6 +81,11 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   <div class="hint" id="lnhint">People can zap you by scanning the QR on your badge.</div>
   <label for="tagline">Your line</label>
   <input id="tagline" maxlength="40" placeholder="Stay humble, stack sats">
+  <label for="telegram">Telegram</label>
+  <input id="telegram" maxlength="40" placeholder="@satoshi" autocapitalize="off" spellcheck="false">
+  <label for="pgp">PGP fingerprint</label>
+  <input id="pgp" maxlength="60" placeholder="40 hex digits, spaces are fine" autocapitalize="characters" spellcheck="false">
+  <div class="hint">Whoever you handshake with gets all of this, so they can check your PGP key later.</div>
 
   <h2>Catch your zaps</h2>
   <p class="hint">Your badge lights up when someone zaps your npub on Nostr. It needs internet for that:
@@ -90,6 +105,14 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
 
   <button class="save" id="save">Save to my badge</button>
   <div id="msg" role="status"></div>
+
+  <h2>People you met</h2>
+  <p class="hint">Everyone you did a handshake with, and what they shared. Download them before you leave.</p>
+  <div id="peers"><div id="empty">Loading...</div></div>
+  <div class="dl" id="dl" hidden>
+    <a href="/contacts.vcf" download>Contacts (vCard)</a>
+    <a href="/contacts.csv" download>Spreadsheet (CSV)</a>
+  </div>
 </main>
 <script>
 const $ = id => document.getElementById(id);
@@ -123,7 +146,7 @@ fetch("/api/profile").then(r => r.json()).then(p => {
     b.onclick = () => pick(r);
     $("roles").append(b);
   });
-  ["name", "handle", "npub", "ln", "tagline"].forEach(k => { $(k).value = p[k] || ""; $(k).oninput = refresh; });
+  ["name", "handle", "npub", "ln", "tagline", "telegram", "pgp"].forEach(k => { $(k).value = p[k] || ""; $(k).oninput = refresh; });
   $("wifi").value = p.wifi || "";
   $("maddr").value = p.maddr || "";
   $("mpool").value = p.mpool || "";
@@ -148,9 +171,12 @@ loadNetworks(5);
 
 $("save").onclick = () => {
   const npub = $("npub").value.trim();
+  const pgp = $("pgp").value.replace(/[^0-9a-f]/gi, "");
+  if (pgp && pgp.length !== 40) { show("A PGP fingerprint has 40 hex digits", "err"); return; }
   if (npub && !npub.startsWith("npub1")) { show("That Nostr key should start with npub1", "err"); return; }
   const body = new URLSearchParams({
     role, name: $("name").value, handle: $("handle").value, npub, ln: $("ln").value, tagline: $("tagline").value,
+    telegram: $("telegram").value, pgp: $("pgp").value,
     wifi: $("wifi").value, wifipass: $("wifipass").value,
     maddr: $("maddr").value, mpool: $("mpool").value,
     now: Math.floor(Date.now() / 1000), tz: -new Date().getTimezoneOffset()
@@ -160,6 +186,24 @@ $("save").onclick = () => {
     .catch(() => show("Could not save, try again.", "err"));
 };
 function show(t, c) { $("msg").textContent = t; $("msg").className = c; }
+
+// La gente que has conocido
+function esc(t) { const d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
+fetch("/api/peers").then(r => r.json()).then(list => {
+  if (!list.length) { $("empty").textContent = "Nobody yet. Press PEER next to another badge!"; return; }
+  $("peers").innerHTML = list.map(p => {
+    const rows = [];
+    if (p.x) rows.push('<span>X</span> <a href="https://x.com/' + esc(p.x.replace("@", "")) + '">' + esc(p.x) + "</a>");
+    if (p.telegram) rows.push('<span>Telegram</span> <a href="https://t.me/' + esc(p.telegram.replace("@", "")) + '">' + esc(p.telegram) + "</a>");
+    if (p.npub) rows.push("<span>Nostr</span> " + esc(p.npub));
+    if (p.ln) rows.push("<span>Lightning</span> " + esc(p.ln));
+    if (p.pgp) rows.push("<span>PGP</span> " + esc(p.pgp.match(/.{4}/g).join(" ")));
+    return '<div class="peer" style="--c:' + p.color + '"><b>' + esc(p.name) + "</b>" +
+      '<div class="meta">#' + String(p.number).padStart(3, "0") + " · " + p.role + " · block " + p.block + (p.met ? " · " + p.met : "") + "</div>" +
+      rows.map(r => '<div class="row">' + r + "</div>").join("") + "</div>";
+  }).join("");
+  $("dl").hidden = false;
+}).catch(() => { $("empty").textContent = "Could not load them."; });
 </script>
 </body></html>
 )HTML";

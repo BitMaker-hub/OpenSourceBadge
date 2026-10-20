@@ -5,9 +5,11 @@
 
 namespace peerlink {
 
-// El mensaje que se gritan los badges. Cabe de sobra en los 250 bytes de ESP-NOW.
+// El mensaje que se gritan los badges: la tarjeta de visita entera. ESP-NOW
+// admite 250 bytes y esto ocupa 241; por eso la huella PGP va en binario (20
+// bytes) y no en texto (40).
 struct __attribute__((packed)) Hello {
-  char     magic[4];                    // "OSB1": si no, no es un badge nuestro
+  char     magic[4];                    // "OSB2": si no, no es un badge nuestro (OSB1 era sin Telegram ni PGP)
   uint8_t  heard[6];                    // a quién oigo yo (ceros = a nadie todavía)
   uint16_t number;
   uint8_t  role;
@@ -17,7 +19,10 @@ struct __attribute__((packed)) Hello {
   char     handle[HANDLE_LEN + 1];
   char     npub[NPUB_LEN + 1];
   char     lightning[LIGHTNING_LEN + 1];
+  char     telegram[TELEGRAM_LEN + 1];
+  uint8_t  pgp[PGP_LEN / 2];            // ceros = sin PGP
 };
+static_assert(sizeof(Hello) <= 250, "ESP-NOW no manda más de 250 bytes");
 
 // Lo que llega por radio se apunta aquí (lo escribe la tarea de la WiFi)
 // y lo procesa loop(), en nuestro hilo
@@ -46,7 +51,7 @@ static void copy(char* dst, const String& src, size_t size) {
 // ---------------------------------------------------------------- radio
 
 static void onReceive(const uint8_t* mac, const uint8_t* data, int len) {
-  if (len != sizeof(Hello) || memcmp(data, "OSB1", 4) != 0) return;
+  if (len != sizeof(Hello) || memcmp(data, "OSB2", 4) != 0) return;
   Received r;
   memcpy(r.mac, mac, 6);
   memcpy(&r.hello, data, sizeof(Hello));
@@ -56,7 +61,7 @@ static void onReceive(const uint8_t* mac, const uint8_t* data, int len) {
 static void sendHello() {
   const Profile& me = badge::me();
   Hello h = {};
-  memcpy(h.magic, "OSB1", 4);
+  memcpy(h.magic, "OSB2", 4);
   memcpy(h.heard, candidate.mac, 6);
   h.number = badge::number();
   h.role = (uint8_t)me.role;
@@ -66,6 +71,9 @@ static void sendHello() {
   copy(h.handle, me.handle, sizeof h.handle);
   copy(h.npub, me.npub, sizeof h.npub);
   copy(h.lightning, me.lightning, sizeof h.lightning);
+  copy(h.telegram, me.telegram, sizeof h.telegram);
+  if (me.pgp.length() == PGP_LEN)
+    for (int i = 0; i < PGP_LEN / 2; i++) h.pgp[i] = strtoul(me.pgp.substring(i * 2, i * 2 + 2).c_str(), nullptr, 16);
   esp_now_send(BROADCAST, (const uint8_t*)&h, sizeof h);
 }
 
@@ -91,6 +99,15 @@ static void handle(const Received& r) {
   candidate.handle = h.handle;
   candidate.npub = h.npub;
   candidate.lightning = h.lightning;
+  candidate.telegram = String(h.telegram).substring(0, TELEGRAM_LEN);
+  candidate.pgp = "";
+  for (uint8_t b : h.pgp)
+    if (b) { candidate.pgp = "x"; break; }               // ¿hay huella? (20 ceros = no)
+  if (candidate.pgp.length()) {
+    char hex[PGP_LEN + 1];
+    for (int i = 0; i < PGP_LEN / 2; i++) snprintf(hex + i * 2, 3, "%02X", h.pgp[i]);
+    candidate.pgp = hex;
+  }
   candidate.role = h.role < (uint8_t)Role::Count ? (Role)h.role : Role::Anon;
   candidate.number = h.number;
 

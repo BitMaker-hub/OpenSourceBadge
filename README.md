@@ -61,6 +61,16 @@ El mismo `effects::trail(...)` hace la estela de un zap por la B o un barrido po
 T-Display (600 mA, compartido con el ESP32), así que ningún efecto puede pasarse. Si todos están apagados,
 corta la alimentación de los LEDs (Q1).
 
+## Contactos
+
+En el handshake cada badge le pasa al otro su tarjeta entera: nombre, rol, X, Telegram, npub, dirección Lightning y
+huella PGP (todo en un mensaje ESP-NOW de 241 bytes, "OSB2"; la huella va en binario para que quepa). Cada peer se
+guarda con todo eso en `/peers2.bin` (el `/peers.bin` de antes se pasa solo al nuevo formato).
+
+En `badge.local` (MODE largo) está la sección **People you met** con la lista, y se descargan como **vCard**
+(`/contacts.vcf`, se importan directos en la agenda del móvil) o **CSV** (`/contacts.csv`). Telegram y PGP se ponen
+en la misma página o por el puerto serie (`Ytelegram=@pepe`, `Ypgp=<huella>`).
+
 ## Peer cercano
 
 Cada badge manda por ESP-NOW un "estoy aquí" cada segundo (`net/nearby`). Con la fuerza de la señal se sabe si

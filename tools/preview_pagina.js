@@ -29,9 +29,13 @@ const _fetch = window.fetch;
 window.fetch = (url, opt) => {
   if (url === "/api/profile" && (!opt || opt.method !== "POST"))
     return Promise.resolve({json: () => ({number: 42, name: "satoshi.friends", handle: "@satoshi", npub: "", ln: "",
-      tagline: "Stay humble, stack sats", role: "DEV", roles: ${JSON.stringify(roles)}})});
+      tagline: "Stay humble, stack sats", telegram: "@satoshi", pgp: "", role: "DEV", roles: ${JSON.stringify(roles)}})});
   if (url === "/api/profile") return new Promise(r => setTimeout(() => r({ok: true}), 400));
   if (url === "/api/networks") return Promise.resolve({json: () => ["BitcoinAmsterdam-Guest", "iPhone", "Bitronics"]});
+  if (url === "/api/peers") return Promise.resolve({json: () => [
+    {number: 764, name: "Satoshi", role: "ANON", color: "#989CA8", x: "@satoshi", telegram: "@nakamoto", npub: "npub1gzuushllat7pet0ccv9yuhygvc8ldeyhrgxuwg744dn5khnpk3gs3ea5ds",
+     ln: "satoshi@getalby.com", pgp: "A1B2C3D4E5F60718293A4B5C6D7E8F9012345678", block: 9, met: "2026-10-21 11:42"},
+    {number: 308, name: "Bitmaker", role: "DEV", color: "#38BCF8", x: "@bitmaker", telegram: "", npub: "", ln: "", pgp: "", block: 8, met: ""}]});
   return _fetch(url, opt);
 };
 new MutationObserver(() => document.querySelectorAll("img[src^='/avatar.svg']").forEach(i => i.src = AVATARS[i.src.split("r=")[1]]))

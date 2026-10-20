@@ -79,6 +79,25 @@ String wifiName() {
   return ssid;
 }
 
+// Telegram: se aceptan "@pepe", "pepe", "t.me/pepe" o el enlace entero
+String cleanTelegram(const String& raw) {
+  String t = clean(raw, 80);
+  t.trim();
+  const int slash = t.lastIndexOf('/');
+  if (slash >= 0) t = t.substring(slash + 1);
+  t.replace("@", "");
+  t.replace(" ", "");
+  return t.length() ? "@" + t.substring(0, TELEGRAM_LEN - 1) : "";
+}
+
+// PGP: la huella se suele copiar en grupos de 4 con espacios. Solo valen 40 cifras hex.
+String cleanPgp(const String& raw) {
+  String h;
+  for (char c : raw)
+    if (isxdigit((unsigned char)c)) h += (char)toupper(c);
+  return h.length() == PGP_LEN ? h : "";
+}
+
 // ============================================================ peers
 
 int peerCount() { return nPeers; }
