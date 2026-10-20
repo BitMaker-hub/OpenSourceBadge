@@ -30,6 +30,7 @@
 #include "net/nearby.h"
 #include "net/lnbits.h"
 #include "net/miner.h"
+#include "app/battery_log.h"
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 
@@ -168,9 +169,13 @@ static ButtonEvent readSerialCommand() {
                     miner::running() ? "minando" : "parado (solo mina en su pantalla)", ms.connected ? "con trabajo" : "sin trabajo", ms.khs,
                     (unsigned long)ms.accepted, (unsigned long)ms.shares, (unsigned long)ms.rejected, ms.bestDiff, ms.poolDiff,
                     (unsigned long)ms.templates);
+      Serial.printf("  Batería: %u mV (%u %%), USB: %u mV%s\n", power::batteryMillivolts(), power::batteryPercent(),
+                    power::usbMillivolts(), power::usbConnected() ? " (cargando)" : "");
       Serial.printf("  Encendido hace %lu min; último reinicio: %s\n", millis() / 60000, resetReason());
       return ButtonEvent::None;
     }
+    case 'B': batterylog::dump();  return ButtonEvent::None;
+    case 'b': batterylog::clear(); return ButtonEvent::None;
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;
     case 'X': badge::factoryReset(); Serial.println("Badge borrado"); return ButtonEvent::None;
     case 'p': return ButtonEvent::PeerShort;
@@ -193,6 +198,7 @@ void setup() {
   qwiic::begin();
   display::begin();
   app::begin();
+  batterylog::begin();   // después de app::begin, que monta LittleFS
   Serial.println("Open Source Badge listo. Teclas: p m s (P M S largas), z zap, d demo, n042 numero, X borrar");
   Serial.printf("Último reinicio: %s\n", resetReason());
 }
@@ -209,6 +215,7 @@ void loop() {
 
   nearby::loop();       // quién hay cerca (y si alguien nos invita)
   app::update(event);   // el estado actual pinta LEDs y pantalla en memoria
+  batterylog::loop(app::stateName(app::current()));
   leds::show();
   display::push();
 
