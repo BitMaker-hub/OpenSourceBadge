@@ -4,6 +4,7 @@
 #include "../net/miner.h"
 #include <LittleFS.h>
 #include <Preferences.h>
+#include <unistd.h>
 
 namespace batterylog {
 
@@ -13,6 +14,10 @@ static const uint32_t EVERY_MS  = 30000;
 static const size_t   MAX_BYTES = 96 * 1024;   // ~2.000 líneas, unas 16 h; luego pasa a _old y empieza otro
 
 static uint32_t bootId = 0;
+
+// exists() de esta versión se queja por el puerto cuando el fichero no
+// está (lo abre para mirarlo); access() pregunta sin abrir y no dice nada
+static bool exists(const char* name) { return access((String("/littlefs") + name).c_str(), F_OK) == 0; }
 static uint32_t lastAt = 0;
 
 // La batería se lee varias veces y se hace la media: con la radio y la pantalla
@@ -39,7 +44,7 @@ void loop(const char* stateName) {
   if (!f) return;
   if (f.size() > MAX_BYTES) {                     // lleno: lo de antes a _old y uno nuevo
     f.close();
-    if (LittleFS.exists(FILE_OLD)) LittleFS.remove(FILE_OLD);
+    if (exists(FILE_OLD)) LittleFS.remove(FILE_OLD);
     LittleFS.rename(FILE_NOW, FILE_OLD);
     f = LittleFS.open(FILE_NOW, FILE_APPEND);
     if (!f) return;
@@ -53,7 +58,7 @@ void loop(const char* stateName) {
 void dump() {
   Serial.println("BATLOG arranque,segundos,bateria_mV,usb_mV,estado,radio,minando");
   for (const char* name : {FILE_OLD, FILE_NOW}) {
-    if (!LittleFS.exists(name)) continue;   // (sin esto, el sistema de ficheros se queja por el puerto)
+    if (!exists(name)) continue;   // (sin esto, el sistema de ficheros se queja por el puerto)
     File f = LittleFS.open(name, "r");
     if (!f) continue;
     while (f.available()) Serial.write(f.read());
@@ -64,7 +69,7 @@ void dump() {
 
 void clear() {
   for (const char* name : {FILE_NOW, FILE_OLD})
-    if (LittleFS.exists(name)) LittleFS.remove(name);
+    if (exists(name)) LittleFS.remove(name);
   Serial.println("Registro de batería borrado");
 }
 
