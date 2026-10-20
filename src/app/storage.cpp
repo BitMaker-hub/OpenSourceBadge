@@ -1,7 +1,7 @@
 #include "storage.h"
 #include <Preferences.h>
 #include <LittleFS.h>
-#include <unistd.h>
+#include <sys/stat.h>
 
 namespace storage {
 
@@ -23,8 +23,11 @@ struct PeerRecord {
   char     telegram[TELEGRAM_LEN + 1];
   char     pgp[PGP_LEN + 1];
 };
-// LittleFS.exists() de esta versión se queja por el puerto si no está; access() no
-static bool fileExists(const char* name) { return access((String("/littlefs") + name).c_str(), F_OK) == 0; }
+// LittleFS.exists() de esta versión se queja por el puerto si no está; stat() no
+static bool fileExists(const char* name) {
+  struct stat st;
+  return stat((String("/littlefs") + name).c_str(), &st) == 0;
+}
 
 // La parte de delante es igual que la versión 1: un registro viejo es el principio de uno nuevo
 static const size_t RECORD_V1_SIZE = offsetof(PeerRecord, telegram);
@@ -84,13 +87,12 @@ void     saveBlockHeight(uint32_t h) { prefs.putULong("block", h); }
 uint32_t loadSats()              { return prefs.getULong("sats", 0); }
 void     saveSats(uint32_t s)    { prefs.putULong("sats", s); }
 
-int loadPeers(Peer* out, int max) {
-  // Si solo está el fichero de antes, se lee con su tamaño de registro (sin Telegram ni PGP)
-  const bool v1 = !fileExists(PEERS_FILE) && fileExists(PEERS_FILE_V1);
-  File f = LittleFS.open(v1 ? PEERS_FILE_V1 : PEERS_FILE, "r");
-  if (!f) return 0;
-  const size_t size = v1 ? RECORD_V1_SIZE : sizeof(PeerRecord);
-  int n = 0;
+void savePeers(const Peer* peers, int count);
+
+// Lee los registros de un fichero (con su tamaño de registro) a continuación de los que ya hay
+static int readPeers(const char* name, size_t size, Peer* out, int n, int max) {
+  File f = LittleFS.open(name, "r");
+  if (!f) return n;
   PeerRecord r;
   while (n < max && (memset(&r, 0, sizeof r), f.read((uint8_t*)&r, size) == size)) {
     Peer& p = out[n++];
@@ -100,6 +102,17 @@ int loadPeers(Peer* out, int max) {
     p.telegram = r.telegram;  p.pgp = r.pgp;
   }
   f.close();
+  return n;
+}
+
+int loadPeers(Peer* out, int max) {
+  int n = 0;
+  // El fichero de antes (sin Telegram ni PGP) va delante: son los más antiguos.
+  // Si está, se juntan los dos y se guarda todo ya en el nuevo (savePeers lo borra).
+  const bool v1 = fileExists(PEERS_FILE_V1);
+  if (v1) n = readPeers(PEERS_FILE_V1, RECORD_V1_SIZE, out, n, max);
+  if (fileExists(PEERS_FILE)) n = readPeers(PEERS_FILE, sizeof(PeerRecord), out, n, max);
+  if (v1) savePeers(out, n);
   return n;
 }
 

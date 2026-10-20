@@ -47,6 +47,7 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   Gpool|puerto|direccion = configurar el NerdMiner (y g = encender/apagar)
 //   i          = estado: perfil, WiFi de internet y Nostr
 //   Z          = poner a cero el contador de sats recibidos
+//   K          = lista de contactos (peers) con todos sus datos
 //   X          = borrar perfil y peers (dejarlo como nuevo)
 //   c          = captura de la pantalla (la lee tools/captura.py)
 //   J{...}     = probar un mensaje de relay de Nostr (un recibo de zap en una línea)
@@ -177,6 +178,15 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("  Encendido hace %lu min; último reinicio: %s\n", millis() / 60000, resetReason());
       return ButtonEvent::None;
     }
+    case 'K':   // los contactos guardados, con todo lo que pasaron en el handshake
+      Serial.printf("%d peers\n", badge::peerCount());
+      for (int i = 0; i < badge::peerCount(); i++) {
+        const Peer& p = badge::peer(i);
+        Serial.printf("  #%03u %s (%s) bloque %lu | X %s | Telegram %s | %s | LN %s | PGP %s\n", p.number, p.name.c_str(),
+                      roleInfo(p.role).name, (unsigned long)p.block, p.handle.c_str(), p.telegram.c_str(), p.npub.c_str(),
+                      p.lightning.c_str(), p.pgp.c_str());
+      }
+      return ButtonEvent::None;
     case 'B': batterylog::dump();  return ButtonEvent::None;
     case 'b': batterylog::clear(); return ButtonEvent::None;
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;

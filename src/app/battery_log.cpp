@@ -4,7 +4,7 @@
 #include "../net/miner.h"
 #include <LittleFS.h>
 #include <Preferences.h>
-#include <unistd.h>
+#include <sys/stat.h>
 
 namespace batterylog {
 
@@ -16,8 +16,11 @@ static const size_t   MAX_BYTES = 96 * 1024;   // ~2.000 líneas, unas 16 h; lue
 static uint32_t bootId = 0;
 
 // exists() de esta versión se queja por el puerto cuando el fichero no
-// está (lo abre para mirarlo); access() pregunta sin abrir y no dice nada
-static bool exists(const char* name) { return access((String("/littlefs") + name).c_str(), F_OK) == 0; }
+// está (lo abre para mirarlo); stat() pregunta sin abrir y no dice nada
+static bool exists(const char* name) {
+  struct stat st;
+  return stat((String("/littlefs") + name).c_str(), &st) == 0;
+}
 static uint32_t lastAt = 0;
 
 // La batería se lee varias veces y se hace la media: con la radio y la pantalla
