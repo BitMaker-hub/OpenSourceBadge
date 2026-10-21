@@ -1,7 +1,24 @@
 #include "power.h"
 #include "../config.h"
+#include <Preferences.h>
 
 namespace power {
+
+// Lo que se sabe de la batería entre encendidos: si alguna vez la ha tenido y
+// cuánto tenía la última vez. Con el interruptor en OFF y el USB puesto, la
+// lectura es la misma que con la batería llena; esto lo desempata (chargeState).
+static Preferences memory;
+static bool    everHadBattery = false;
+static uint8_t lastKnownPercent = 0;
+
+static void rememberPercent(uint8_t pct) {
+  // Solo si cambia 5 puntos (o llega a lleno): la flash no se gasta por nada
+  if (everHadBattery && abs((int)pct - (int)lastKnownPercent) < 5 && !(pct == 100 && lastKnownPercent != 100)) return;
+  everHadBattery = true;
+  lastKnownPercent = pct;
+  memory.putBool("bat_ever", true);
+  memory.putUChar("bat_pct", pct);
+}
 
 void begin() {
   // Con batería, el T-Display no alimenta la pantalla hasta que GPIO15 está alto.
@@ -10,6 +27,9 @@ void begin() {
   digitalWrite(PIN_POWER_ON, HIGH);
 
   analogReadResolution(12);
+  memory.begin("badge", false);
+  everHadBattery = memory.isKey("bat_ever") && memory.getBool("bat_ever");
+  lastKnownPercent = memory.isKey("bat_pct") ? memory.getUChar("bat_pct") : 0;
 }
 
 uint16_t usbMillivolts()     { return analogReadMilliVolts(PIN_USB_SENSE) * 2; }
@@ -40,7 +60,12 @@ Charge chargeState() {
   const bool low = sum / 4 < 4650;
   battery(low);
   if (low) return Charge::Charging;
-  return seenBattery ? Charge::Full : Charge::NoBattery;
+  if (seenBattery) return Charge::Full;
+  // Arrancó ya enchufado y la lectura es alta: o está llena, o el interruptor
+  // está en OFF (o no hay batería). Si la última vez estaba llena, se da por
+  // llena (y si fuese el interruptor, da igual: no le hacía falta cargar). Si
+  // estaba a medias, cargando leería menos de 4,65 V: es que no está cargando.
+  return everHadBattery && lastKnownPercent >= 90 ? Charge::Full : Charge::NoBattery;
 }
 
 bool charging() { return chargeState() == Charge::Charging; }
@@ -85,6 +110,7 @@ uint8_t batteryPercent() {
     if (shown == 255 || abs((int)pct - (int)shown) >= 2 || pct == 0 || pct == 100) shown = pct;
     estimate = shown;
     estimateAt = now;
+    if (now > 20000) rememberPercent(shown);   // pasados los primeros segundos, que la media aún se asienta
     return shown;
   }
 
@@ -99,11 +125,12 @@ uint8_t batteryPercent() {
   if (c == Charge::NoBattery) return 0;
   if (estimate < 0) {                                        // arrancó con USB: no sabemos de dónde parte
     if (c == Charge::Charging) return UNKNOWN_PERCENT;       // mejor no decir nada que inventárselo
-    estimate = 90;
+    estimate = max(90, (int)lastKnownPercent);              // llena: parte de lo que tenía la última vez
   }
   // Nunca hacia abajo: una lectura suelta por debajo del corte no puede devolverlo al 95
   if (c == Charge::Charging) estimate = max(estimate, min(estimate + minutes * 1.0f, 95.0f));
   else                       estimate = min(max(estimate, 90.0f) + minutes * 0.5f, 100.0f);
+  rememberPercent((uint8_t)estimate);
   return (uint8_t)estimate;
 }
 

@@ -191,6 +191,17 @@ static ButtonEvent readSerialCommand() {
                       p.lightning.c_str(), p.pgp.c_str());
       }
       return ButtonEvent::None;
+    case 'R': {   // ruido de la lectura de batería: 500 lecturas rápidas (para distinguir llena de sin batería)
+      uint32_t mn = 99999, mx = 0; double sum = 0, sum2 = 0;
+      for (int i = 0; i < 500; i++) {
+        const uint32_t v = analogReadMilliVolts(PIN_BATTERY_SENSE) * 2;
+        mn = min(mn, v); mx = max(mx, v); sum += v; sum2 += (double)v * v;
+        delayMicroseconds(200);
+      }
+      const double mean = sum / 500, sd = sqrt(sum2 / 500 - mean * mean);
+      Serial.printf("RUIDO media %.0f mV, min %lu, max %lu, desviación %.1f mV\n", mean, (unsigned long)mn, (unsigned long)mx, sd);
+      return ButtonEvent::None;
+    }
     case 'B': batterylog::dump();  return ButtonEvent::None;
     case 'b': batterylog::clear(); return ButtonEvent::None;
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;
