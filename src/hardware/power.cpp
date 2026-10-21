@@ -19,18 +19,27 @@ uint16_t usbMillivolts()     { return analogReadMilliVolts(PIN_USB_SENSE) * 2; }
 bool     usbConnected()      { return usbMillivolts() > 4450 || HWCDC::isConnected(); }
 uint16_t batteryMillivolts() { return analogReadMilliVolts(PIN_BATTERY_SENSE) * 2; }
 Charge chargeState() {
-  static bool seenBattery = false;   // ¿ha funcionado con batería, o la ha visto cargando, desde que arrancó?
+  static bool     seenBattery = false;   // ¿ha funcionado con batería, o la ha visto cargando, desde que arrancó?
+  static uint32_t signalSince = 0;       // desde cuándo hay señal de batería, sin cortes
+  // Al encender, las lecturas salen bajas unos segundos (~4,45 V con USB y sin
+  // batería): el #308, sin batería, se creía "lleno". Así que la batería solo
+  // cuenta como vista pasados 15 s del arranque y con la señal 5 s seguidos.
+  auto battery = [&](bool signal) {
+    if (!signal) { signalSince = 0; return; }
+    if (signalSince == 0) signalSince = millis();
+    if (millis() > 15000 && millis() - signalSince > 5000) seenBattery = true;
+  };
+
   if (!usbConnected()) {
-    seenBattery = true;
+    battery(true);
     return Charge::OnBattery;
   }
   // Media de 4 lecturas: una sola, con un pico de la radio, bailaba entre cargando y llena
   uint32_t sum = 0;
   for (int i = 0; i < 4; i++) sum += batteryMillivolts();
-  if (sum / 4 < 4650) {
-    seenBattery = true;
-    return Charge::Charging;
-  }
+  const bool low = sum / 4 < 4650;
+  battery(low);
+  if (low) return Charge::Charging;
   return seenBattery ? Charge::Full : Charge::NoBattery;
 }
 
