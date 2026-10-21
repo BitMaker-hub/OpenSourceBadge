@@ -24,7 +24,10 @@ Charge chargeState() {
     seenBattery = true;
     return Charge::OnBattery;
   }
-  if (batteryMillivolts() < 4650) {
+  // Media de 4 lecturas: una sola, con un pico de la radio, bailaba entre cargando y llena
+  uint32_t sum = 0;
+  for (int i = 0; i < 4; i++) sum += batteryMillivolts();
+  if (sum / 4 < 4650) {
     seenBattery = true;
     return Charge::Charging;
   }
@@ -89,7 +92,8 @@ uint8_t batteryPercent() {
     if (c == Charge::Charging) return UNKNOWN_PERCENT;       // mejor no decir nada que inventárselo
     estimate = 90;
   }
-  if (c == Charge::Charging) estimate = min(estimate + minutes * 1.0f, 95.0f);
+  // Nunca hacia abajo: una lectura suelta por debajo del corte no puede devolverlo al 95
+  if (c == Charge::Charging) estimate = max(estimate, min(estimate + minutes * 1.0f, 95.0f));
   else                       estimate = min(max(estimate, 90.0f) + minutes * 0.5f, 100.0f);
   return (uint8_t)estimate;
 }
