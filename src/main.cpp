@@ -19,6 +19,7 @@
 #include "hardware/buttons.h"
 #include "hardware/leds.h"
 #include "hardware/power.h"
+#include "hardware/backlight.h"
 #include "hardware/qwiic.h"
 #include "ui/display.h"
 #include "app/state_machine.h"
@@ -210,6 +211,7 @@ void setup() {
   leds::begin();
   qwiic::begin();
   display::begin();
+  backlight::begin();
   app::begin();
   batterylog::begin();   // después de app::begin, que monta LittleFS
   Serial.println("Open Source Badge listo. Teclas: p m s (P M S largas), z zap, d demo, n042 numero, X borrar");
@@ -218,7 +220,9 @@ void setup() {
 
 void loop() {
   ButtonEvent event = buttons::poll();
-  if (event == ButtonEvent::None) event = readSerialCommand();
+  // Con la pantalla apagada, el primer botón solo la enciende
+  if (event != ButtonEvent::None && backlight::activity()) event = ButtonEvent::None;
+  if (event == ButtonEvent::None && (event = readSerialCommand()) != ButtonEvent::None) backlight::activity();
   if (event != ButtonEvent::None) Serial.printf("[boton] %s\n", buttons::eventName(event));
 
   // Sin eventos, solo se redibuja cada FRAME_MS; con un evento, al momento
@@ -227,10 +231,19 @@ void loop() {
   lastFrame = millis();
 
   nearby::loop();       // quién hay cerca (y si alguien nos invita)
+  const State before = app::current();
   app::update(event);   // el estado actual pinta LEDs y pantalla en memoria
+  if (app::current() != before) backlight::activity();   // un zap, una invitación...: que se vea
+
+  // Ahorro con batería: la luz de la pantalla según el rato sin tocar nada, y el
+  // procesador a 80 MHz (le sobra; el minero sí necesita los 240)
+  const bool usb = power::usbConnected();
+  backlight::loop(usb);
+  const uint32_t mhz = usb || miner::running() ? 240 : 80;
+  if (getCpuFrequencyMhz() != mhz) setCpuFrequencyMhz(mhz);
   batterylog::loop(app::stateName(app::current()));
   leds::show();
-  display::push();
+  if (!backlight::isOff()) display::push();   // apagada, no hace falta mandarle nada
 
   if (screenshotPending) {
     // En el Seed Lab puede haber palabras en pantalla: por el USB no salen nunca

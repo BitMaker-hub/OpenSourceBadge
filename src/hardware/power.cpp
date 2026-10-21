@@ -13,7 +13,10 @@ void begin() {
 }
 
 uint16_t usbMillivolts()     { return analogReadMilliVolts(PIN_USB_SENSE) * 2; }
-bool     usbConnected()      { return usbMillivolts() > 4000; }
+// Sin USB, a este pin le llega la batería por detrás (hasta 4,2 V con la batería
+// llena: con el corte en 4 V, sin cable decía que había USB). Con USB lee
+// 4,55-4,7 V. Y si hay un ordenador al otro lado, el propio USB del chip lo sabe.
+bool     usbConnected()      { return usbMillivolts() > 4450 || HWCDC::isConnected(); }
 uint16_t batteryMillivolts() { return analogReadMilliVolts(PIN_BATTERY_SENSE) * 2; }
 bool     charging()          { return usbConnected() && batteryMillivolts() < 4650; }
 
