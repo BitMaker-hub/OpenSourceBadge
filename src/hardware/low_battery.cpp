@@ -10,9 +10,12 @@
 
 namespace lowbattery {
 
-static const uint16_t EMPTY_MV  = 3400;    // con carga; en reposo la celda está algo más alta
+// Medido en el #980: desde 3,25 V cae en picado y hacia 3,0 V se apaga; sin
+// este corte entró en un bucle de ~1400 reinicios (escribiendo en la memoria
+// en cada uno). En 3,15 V se pierde menos del 2 % de la autonomía.
+static const uint16_t EMPTY_MV  = 3150;
 static const uint32_t FOR_MS    = 30000;   // un pico de consumo no cuenta: tiene que durar
-static const uint16_t WAKE_OK_MV = 3500;   // al despertar, por debajo de esto vuelve a dormir
+static const uint16_t WAKE_OK_MV = 3300;   // al despertar (ya sin carga sube un poco): por debajo, a dormir otra vez
 
 static uint16_t averaged() {
   uint32_t sum = 0;

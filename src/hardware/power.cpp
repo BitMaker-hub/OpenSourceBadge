@@ -20,12 +20,16 @@ bool     usbConnected()      { return usbMillivolts() > 4450 || HWCDC::isConnect
 uint16_t batteryMillivolts() { return analogReadMilliVolts(PIN_BATTERY_SENSE) * 2; }
 bool     charging()          { return usbConnected() && batteryMillivolts() < 4650; }
 
-// Tensión en reposo de una LiPo frente a la carga que le queda
+// Lo que lee el badge con carga frente al tiempo que le queda. Medido en el #980
+// con la EEMB LP603449 de 1100 mAh (2026-10-22): 4 h 58 min en el perfil, sin
+// ahorro, ~220 mA. La lectura con carga va más baja que la celda en reposo:
+// llena da ~3,94 V y se apaga hacia 3,0 V (cae en picado desde 3,25 V).
+// El porcentaje es el tiempo que le queda, no la tensión.
 static uint8_t percentFor(float mv) {
-  static const uint16_t MV[]  = {3300, 3600, 3700, 3750, 3800, 3900, 4000, 4100, 4200};
-  static const uint8_t  PCT[] = {   0,    5,   15,   25,   40,   60,   75,   90,  100};
+  static const uint16_t MV[]  = {3050, 3250, 3335, 3420, 3462, 3497, 3541, 3596, 3675, 3772, 3882, 3940};
+  static const uint8_t  PCT[] = {   0,    5,   10,   20,   30,   40,   50,   60,   70,   80,   90,  100};
   if (mv <= MV[0]) return 0;
-  for (int i = 1; i < 9; i++) {
+  for (int i = 1; i < 12; i++) {
     if (mv <= MV[i]) return PCT[i - 1] + (PCT[i] - PCT[i - 1]) * (mv - MV[i - 1]) / (MV[i] - MV[i - 1]);
   }
   return 100;
