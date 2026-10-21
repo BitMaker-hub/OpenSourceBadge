@@ -49,20 +49,49 @@ static uint8_t percentFor(float mv) {
 }
 
 uint8_t batteryPercent() {
-  // Con la radio y la pantalla la lectura baila unos mV, y el número saltaba
-  // 36-37-36 sin parar. Por eso: una media lenta (una lectura cada medio
-  // segundo, que pesa 1/8) y el número solo cambia si se mueve 2 puntos o más.
-  static float    mv = 0;
+  static float    mv = 0;          // media lenta de la tensión con batería
   static uint32_t lastAt = 0;
-  static uint8_t  shown = 255;
-  if (mv == 0 || millis() - lastAt >= 500) {
-    const float now = batteryMillivolts();
-    mv = mv == 0 ? now : mv + (now - mv) / 8;
-    lastAt = millis();
+  static uint8_t  shown = 255;     // lo que se enseña (con zona muerta)
+  static float    estimate = -1;   // cargando: el porcentaje estimado por tiempo
+  static uint32_t estimateAt = 0;
+  static bool     wasUsb = false;
+  const Charge c = chargeState();
+  const uint32_t now = millis();
+
+  if (c == Charge::OnBattery) {
+    // Con la radio y la pantalla la lectura baila unos mV, y el número saltaba
+    // 36-37-36 sin parar. Por eso: una media lenta (una lectura cada medio
+    // segundo, que pesa 1/8) y el número solo cambia si se mueve 2 puntos o más.
+    if (wasUsb) { mv = 0; shown = 255; }      // recién desenchufado: la media empieza de cero
+    wasUsb = false;
+    if (mv == 0 || now - lastAt >= 500) {
+      const float read = batteryMillivolts();
+      mv = mv == 0 ? read : mv + (read - mv) / 8;
+      lastAt = now;
+    }
+    const uint8_t pct = percentFor(mv);
+    if (shown == 255 || abs((int)pct - (int)shown) >= 2 || pct == 0 || pct == 100) shown = pct;
+    estimate = shown;
+    estimateAt = now;
+    return shown;
   }
-  const uint8_t pct = percentFor(mv);
-  if (shown == 255 || abs((int)pct - (int)shown) >= 2 || pct == 0 || pct == 100) shown = pct;
-  return shown;
+
+  // Con USB la tensión no dice cuánto lleva (medido en el #980): mientras carga
+  // la lectura se queda plana en ~4,58 V y solo al final salta a ~4,73 V. Así
+  // que se estima por tiempo, desde el último porcentaje con batería: ~1 % por
+  // minuto (de vacía al 65 % en 64 min con el badge encendido), y en el tramo
+  // final, despacio hasta el 100 %.
+  wasUsb = true;
+  const float minutes = (now - estimateAt) / 60000.0f;
+  estimateAt = now;
+  if (c == Charge::NoBattery) return 0;
+  if (estimate < 0) {                                        // arrancó con USB: no sabemos de dónde parte
+    if (c == Charge::Charging) return UNKNOWN_PERCENT;       // mejor no decir nada que inventárselo
+    estimate = 90;
+  }
+  if (c == Charge::Charging) estimate = min(estimate + minutes * 1.0f, 95.0f);
+  else                       estimate = min(max(estimate, 90.0f) + minutes * 0.5f, 100.0f);
+  return (uint8_t)estimate;
 }
 
 }  // namespace power

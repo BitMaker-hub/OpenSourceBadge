@@ -175,7 +175,7 @@ static ButtonEvent readSerialCommand() {
                     miner::running() ? "minando" : "parado (solo mina en su pantalla)", ms.connected ? "con trabajo" : "sin trabajo", ms.khs,
                     (unsigned long)ms.accepted, (unsigned long)ms.shares, (unsigned long)ms.rejected, ms.bestDiff, ms.poolDiff,
                     (unsigned long)ms.templates);
-      Serial.printf("  Batería: %u mV (%u %%), USB: %u mV%s\n", power::batteryMillivolts(), power::batteryPercent(),
+      Serial.printf("  Batería: %u mV (%s), USB: %u mV%s\n", power::batteryMillivolts(), power::batteryPercent() == power::UNKNOWN_PERCENT ? "? %" : (String(power::batteryPercent()) + " %").c_str(),
                     power::usbMillivolts(), power::chargeState() == power::Charge::Charging ? " (cargando)" :
                     power::chargeState() == power::Charge::Full ? " (llena)" :
                     power::chargeState() == power::Charge::NoBattery ? " (interruptor en OFF o sin batería: NO carga)" : "");

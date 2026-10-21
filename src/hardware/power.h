@@ -26,6 +26,7 @@ uint16_t batteryMillivolts();
 enum class Charge : uint8_t { OnBattery, Charging, Full, NoBattery };
 Charge   chargeState();
 bool     charging();          // chargeState() == Charging
-uint8_t  batteryPercent();   // aproximado, por la curva típica de una LiPo
+uint8_t  batteryPercent();   // con USB, estimado por tiempo; UNKNOWN_PERCENT si no se sabe
+constexpr uint8_t UNKNOWN_PERCENT = 255;   // aproximado, por la curva típica de una LiPo
 
 }  // namespace power

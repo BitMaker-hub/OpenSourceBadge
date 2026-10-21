@@ -135,8 +135,13 @@ void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, ui
   int right = 143;                                   // lo que va a la izquierda de la pila
   const power::Charge charge = power::chargeState();
   if (charge == power::Charge::Charging || charge == power::Charge::Full) {
-    chargingBolt(right - 5, 4);
-    right -= 7;
+    chargingBolt(right - 5, 4);                       // el rayito y, delante, lo que lleva (estimado)
+    right -= 8;
+    if (batteryPercent != power::UNKNOWN_PERCENT) {
+      const String pct = String(batteryPercent) + "%";
+      text(pct, right, 1, Font::Body, ink::Dim, Align::Right);
+      right -= textWidth(pct, Font::Body);
+    }
   } else if (charge == power::Charge::NoBattery) {    // interruptor en OFF (no carga) o sin batería
     text("NO BAT", right, 5, Font::Label, ink::Gold, Align::Right);
     right -= textWidth("NO BAT", Font::Label);
