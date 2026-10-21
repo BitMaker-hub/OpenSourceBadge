@@ -17,11 +17,15 @@ uint16_t usbMillivolts();
 bool     usbConnected();
 
 uint16_t batteryMillivolts();
-// Con USB: ¿hay una batería cargándose? Medido en el #980 (2026-10-21): sin
-// batería (o con el interruptor que la corta) GPIO4 lee ~4,72 V, y cargando
-// ~4,58 V (con el cable no se lee la celda). Corte en 4,65 V; si al llenarse
-// pasa de ahí, sale "USB", que también es verdad: ya no está cargando.
-bool     charging();
+// Con USB, qué pasa con la batería. Con el cable no se lee la celda sino lo que
+// da el cargador (medido en el #980): cargando ~4,58 V, y tanto llena como con
+// el interruptor en OFF (que corta también la carga) ~4,72 V. Esos dos se
+// distinguen por la historia: si el badge ha funcionado con batería desde que
+// arrancó, el interruptor está en ON y es que está llena; si arrancó ya con el
+// USB y nunca ha visto la batería, es que está en OFF (o no hay batería).
+enum class Charge : uint8_t { OnBattery, Charging, Full, NoBattery };
+Charge   chargeState();
+bool     charging();          // chargeState() == Charging
 uint8_t  batteryPercent();   // aproximado, por la curva típica de una LiPo
 
 }  // namespace power

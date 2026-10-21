@@ -106,6 +106,16 @@ static uint32_t bannerSince = 0;
 
 static uint32_t bannerLastClose = 0;
 
+// "No está cargando": sale 8 s cuando el badge ve USB pero no batería
+// (interruptor en OFF), y vuelve a salir si se desenchufa y se enchufa otra vez
+static void switchBanner() {
+  static uint32_t since = 0;
+  static bool shown = false;
+  if (power::chargeState() != power::Charge::NoBattery) { shown = false; return; }
+  if (!shown) { shown = true; since = millis(); }
+  if (millis() - since < 8000) screens::batterySwitchBanner();
+}
+
 static void nearbyBanner() {
   const nearby::Neighbor* n = nearby::closest();
   if (!n) {
@@ -163,6 +173,7 @@ static void profile(ButtonEvent ev, uint32_t t) {
   idleLeds(t);
   screens::profile();
   nearbyBanner();
+  switchBanner();
 }
 
 static int qrShown = 0;   // el QR que se ve ahora, para que el de pantalla completa sea el mismo

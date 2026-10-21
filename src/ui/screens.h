@@ -35,6 +35,7 @@ void setupSaved();
 
 // LAB (ui/screens_seed.cpp)
 void lab(int selected, bool mining);
+void batterySwitchBanner();   // con USB y la batería sin cargar (interruptor en OFF)
 
 // NerdMiner (ui/screens_miner.cpp): dos páginas, el minero y la red Bitcoin.
 // toast = aviso de un momento abajo ("New job received", "Share accepted!"); "" = ninguno

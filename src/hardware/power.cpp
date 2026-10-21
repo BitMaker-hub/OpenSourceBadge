@@ -18,7 +18,20 @@ uint16_t usbMillivolts()     { return analogReadMilliVolts(PIN_USB_SENSE) * 2; }
 // 4,55-4,7 V. Y si hay un ordenador al otro lado, el propio USB del chip lo sabe.
 bool     usbConnected()      { return usbMillivolts() > 4450 || HWCDC::isConnected(); }
 uint16_t batteryMillivolts() { return analogReadMilliVolts(PIN_BATTERY_SENSE) * 2; }
-bool     charging()          { return usbConnected() && batteryMillivolts() < 4650; }
+Charge chargeState() {
+  static bool seenBattery = false;   // ¿ha funcionado con batería, o la ha visto cargando, desde que arrancó?
+  if (!usbConnected()) {
+    seenBattery = true;
+    return Charge::OnBattery;
+  }
+  if (batteryMillivolts() < 4650) {
+    seenBattery = true;
+    return Charge::Charging;
+  }
+  return seenBattery ? Charge::Full : Charge::NoBattery;
+}
+
+bool charging() { return chargeState() == Charge::Charging; }
 
 // Lo que lee el badge con carga frente al tiempo que le queda. Medido en el #980
 // con la EEMB LP603449 de 1100 mAh (2026-10-22): 4 h 58 min en el perfil, sin

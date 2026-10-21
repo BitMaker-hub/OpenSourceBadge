@@ -416,6 +416,16 @@ void nearbyBanner(const nearby::Neighbor& n, bool alreadyPeer) {
   display::text(alreadyPeer ? "ALREADY PEERS" : "PEER TO CONNECT", 52, 294, Font::Label, accent);
 }
 
+// Aviso abajo: con USB, pero la batería no carga (interruptor en OFF o sin batería)
+void batterySwitchBanner() {
+  display::roundRect(4, 262, 162, 44, ink::Gold);
+  display::roundRect(5, 263, 160, 42, ink::Card2);
+  display::rect(5, 265, 3, 38, ink::Gold);
+  display::text("NOT CHARGING", 14, 267, Font::Label, ink::Gold);
+  display::text("Battery switch", 14, 277, Font::Body, ink::Fg);
+  display::text("is OFF (or no battery)", 14, 293, Font::Label, ink::Soft);
+}
+
 void invite(const nearby::Neighbor& from, bool alreadyPeer, uint32_t t) {
   header("INVITE", ink::Nostr);
   // Ondas que salen del otro, como en la búsqueda

@@ -108,12 +108,16 @@ int wrap(const String& s, int maxWidth, Font f, String* lines, int maxLines) {
 // ---------------------------------------------------------------- piezas
 // La pila. Cargando (con USB) se va llenando en dorado una y otra vez, como en
 // un móvil: con el USB puesto la tensión de la batería no dice cuánto le queda.
-static void batteryIcon(int x, int y, uint8_t pct, bool charging) {
+static void batteryIcon(int x, int y, uint8_t pct, power::Charge charge) {
   rect(x, y, 15, 7, ink::Dim);
   rect(x + 1, y + 1, 13, 5, ink::Bg);
   rect(x + 15, y + 2, 1, 3, ink::Dim);
-  if (charging) rect(x + 2, y + 2, 11 * ((millis() / 450) % 5) / 4, 3, ink::Gold);
-  else          rect(x + 2, y + 2, 11 * pct / 100, 3, pct > 20 ? ink::Ok : ink::Red);
+  switch (charge) {
+    case power::Charge::Charging:  rect(x + 2, y + 2, 11 * ((millis() / 450) % 5) / 4, 3, ink::Gold); break;
+    case power::Charge::Full:      rect(x + 2, y + 2, 11, 3, ink::Ok); break;
+    case power::Charge::NoBattery: break;                                  // vacía: no hay batería que enseñar
+    case power::Charge::OnBattery: rect(x + 2, y + 2, 11 * pct / 100, 3, pct > 20 ? ink::Ok : ink::Red); break;
+  }
 }
 
 // Un rayito de 5 x 9 delante de la pila: está cargando
@@ -129,20 +133,20 @@ void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, ui
   rect(0, 17, SCREEN_W, 1, ink::Line);
   text(title, 6, 1, Font::Body, titleColor);
   int right = 143;                                   // lo que va a la izquierda de la pila
-  const bool charging = power::charging();
-  if (charging) {
+  const power::Charge charge = power::chargeState();
+  if (charge == power::Charge::Charging || charge == power::Charge::Full) {
     chargingBolt(right - 5, 4);
     right -= 7;
-  } else if (power::usbConnected()) {                // USB sin batería (o con el interruptor cortado)
-    text("USB", right, 5, Font::Label, ink::Dim, Align::Right);
-    right -= textWidth("USB", Font::Label);
+  } else if (charge == power::Charge::NoBattery) {    // interruptor en OFF (no carga) o sin batería
+    text("NO BAT", right, 5, Font::Label, ink::Gold, Align::Right);
+    right -= textWidth("NO BAT", Font::Label);
   } else {
     const String pct = String(batteryPercent) + "%";
     text(pct, right, 1, Font::Body, ink::Dim, Align::Right);
     right -= textWidth(pct, Font::Body);
   }
   if (dotColor) lienzo.fillCircle(right - 7, 8, 3, dotColor);
-  batteryIcon(148, 5, batteryPercent, charging);
+  batteryIcon(148, 5, batteryPercent, charge);
 }
 
 int chip(const String& label, int centerX, int y, uint16_t color) {
