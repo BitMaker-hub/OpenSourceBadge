@@ -20,6 +20,7 @@
 #include "hardware/leds.h"
 #include "hardware/power.h"
 #include "hardware/backlight.h"
+#include "hardware/low_battery.h"
 #include "hardware/qwiic.h"
 #include "ui/display.h"
 #include "app/state_machine.h"
@@ -206,12 +207,14 @@ static ButtonEvent readSerialCommand() {
 void setup() {
   Serial.setRxBufferSize(8192);   // para el comando J: un recibo de zap ocupa varios KB
   Serial.begin(115200);
+  lowbattery::begin();   // antes que nada: si venimos de dormir por batería baja, soltar los pines
   power::begin();     // lo primero: sin GPIO15 alto, con batería no hay pantalla
   buttons::begin();
   leds::begin();
   qwiic::begin();
   display::begin();
   backlight::begin();
+  lowbattery::checkAtBoot();   // si la batería sigue vacía, a dormir otra vez (no vuelve)
   app::begin();
   batterylog::begin();   // después de app::begin, que monta LittleFS
   Serial.println("Open Source Badge listo. Teclas: p m s (P M S largas), z zap, d demo, n042 numero, X borrar");
@@ -239,6 +242,7 @@ void loop() {
   // procesador a 80 MHz (le sobra; el minero sí necesita los 240)
   const bool usb = power::usbConnected();
   backlight::loop(usb);
+  lowbattery::loop(usb);
   const uint32_t mhz = usb || miner::running() ? 240 : 80;
   if (getCpuFrequencyMhz() != mhz) setCpuFrequencyMhz(mhz);
   batterylog::loop(app::stateName(app::current()));
