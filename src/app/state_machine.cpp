@@ -81,6 +81,30 @@ static bool homeButtons(ButtonEvent ev) {
   }
 }
 
+// Alguien pegado a nuestro badge. Si es nuevo, TX y RX laten en morado mientras
+// estéis cerca: es una invitación a conectar. Si ya es peer nuestro, solo un
+// saludo verde de unos segundos al acercarse; luego, quietos (los amigos van
+// juntos todo el día y no hace falta estar parpadeando sin parar).
+static void nearbyLeds() {
+  static uint8_t  greetedMac[6] = {};
+  static uint32_t greetedAt = 0, lastNear = 0;
+  const nearby::Neighbor* n = nearby::closest();
+  if (!n) {
+    if (millis() - lastNear > 30000) memset(greetedMac, 0, 6);   // se fue: si vuelve, se le saluda otra vez
+    return;
+  }
+  lastNear = millis();
+  if (!badge::knows(n->mac)) {
+    effects::breathe(groups::TxRx, colors::Purple, 1600, millis());
+    return;
+  }
+  if (memcmp(n->mac, greetedMac, 6) != 0) {          // un amigo que acaba de llegar
+    memcpy(greetedMac, n->mac, 6);
+    greetedAt = millis();
+  }
+  if (millis() - greetedAt < 6000) effects::breathe(groups::TxRx, colors::Green, 1200, millis() - greetedAt);
+}
+
 // En reposo, una sola brasa dando la vuelta a la B muy despacio.
 // Si hay un badge pegado al nuestro, TX y RX laten en morado.
 static void idleLeds(uint32_t t) {
@@ -97,7 +121,7 @@ static void idleLeds(uint32_t t) {
   } else {
     effects::wander(groups::B, colors::Ember, 1800, t);
   }
-  if (nearby::closest()) effects::breathe(groups::TxRx, colors::Purple, 1600, t);
+  nearbyLeds();
 }
 
 // El aviso de "hay alguien cerca": sale 8 s cuando aparece alguien nuevo pegado
