@@ -154,6 +154,7 @@ static void forgetOld() {
 // están en el 1, el 6 o el 11, así que uno de cada dos saltos va a uno de esos
 // tres (y el 1 es además donde se juntan los badges sin WiFi).
 static void hopIfAlone() {
+  if (radio::eco()) return;                                   // con ahorro, todos quietos en el canal 1
   if (radio::status() != radio::Status::NoNetwork) return;   // conectado: el canal es el de la WiFi
   if (millis() - lastHeard < STAY_MS) return;                 // hay alguien: nos quedamos
   if (millis() - lastHop < HOP_EVERY_MS) return;
@@ -169,7 +170,8 @@ static void hopIfAlone() {
 
 void loop() {
   if (!inbox) return;
-  const bool radioReady = radio::status() != radio::Status::Exclusive && WiFi.getMode() == WIFI_STA;
+  const radio::Status rs = radio::status();
+  const bool radioReady = rs != radio::Status::Exclusive && rs != radio::Status::Sleeping && WiFi.getMode() == WIFI_STA;
   if (!radioReady) { stop(); return; }
   if (!started) start();
   if (!started) return;
@@ -187,7 +189,7 @@ void loop() {
       Serial.printf("[nearby] invitación de #%03u %s\n", n->number, n->name);
     }
     // Si estamos saltando sin WiFi y el otro está en otro canal fijo, nos vamos al suyo
-    if (radio::status() == radio::Status::NoNetwork && r.msg.channel && r.msg.channel != currentChannel())
+    if (!radio::eco() && radio::status() == radio::Status::NoNetwork && r.msg.channel && r.msg.channel != currentChannel())
       esp_wifi_set_channel(r.msg.channel, WIFI_SECOND_CHAN_NONE);
   }
   forgetOld();

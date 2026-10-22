@@ -3,6 +3,7 @@
 #include "../config.h"
 #include "../hardware/leds.h"
 #include "../hardware/power.h"
+#include "../hardware/backlight.h"
 #include "../hardware/qwiic.h"
 #include "../effects/led_effects.h"
 #include "../ui/display.h"
@@ -150,6 +151,7 @@ static void nearbyBanner() {
   if (memcmp(n->mac, bannerMac, 6) != 0) {          // alguien distinto: aviso nuevo
     memcpy(bannerMac, n->mac, 6);
     bannerSince = millis();
+    if (!badge::knows(n->mac)) backlight::activity();   // alguien nuevo: que se vea (y la radio despierta)
   }
   if (millis() - bannerSince < 8000) screens::nearbyBanner(*n, badge::knows(n->mac));
 }

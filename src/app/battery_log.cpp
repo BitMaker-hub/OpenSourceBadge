@@ -52,7 +52,7 @@ void loop(const char* stateName) {
     f = LittleFS.open(FILE_NOW, FILE_APPEND);
     if (!f) return;
   }
-  static const char* const RADIO[] = {"exclusiva", "sinwifi", "conectando", "online"};
+  static const char* const RADIO[] = {"exclusiva", "sinwifi", "conectando", "online", "dormida"};
   f.printf("%lu,%lu,%u,%u,%s,%s,%d\n", (unsigned long)bootId, (unsigned long)(millis() / 1000), averagedBattery(),
            power::usbMillivolts(), stateName, RADIO[(int)radio::status()], miner::running() ? 1 : 0);
   f.close();

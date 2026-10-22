@@ -32,6 +32,7 @@ enum class Status : uint8_t {
   NoNetwork,     // no hay WiFi con internet configurada (la radio está, pero sin conectar)
   Connecting,
   Online,        // conectado y con IP
+  Sleeping,      // ahorro: apagada entre ventana y ventana
 };
 
 // Los que abren conexiones por internet
@@ -42,6 +43,10 @@ void reloadNetwork();          // volver a leer la WiFi guardada (después de ca
 
 // Pedir la radio entera (true) o devolverla (false). Al pedirla espera a que esté apagada.
 void exclusive(bool on);
+
+// Ahorro: con batería y la pantalla apagada, la radio solo a ratos (ver radio.cpp)
+void setEco(bool on);
+bool eco();
 
 Status status();
 bool   online();

@@ -50,11 +50,13 @@ static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 //   i          = estado: perfil, WiFi de internet y Nostr
 //   Z          = poner a cero el contador de sats recibidos
 //   K          = lista de contactos (peers) con todos sus datos
+//   E          = simular batería (pantalla que se apaga y radio a ratos aunque haya USB)
 //   X          = borrar perfil y peers (dejarlo como nuevo)
 //   c          = captura de la pantalla (la lee tools/captura.py)
 //   J{...}     = probar un mensaje de relay de Nostr (un recibo de zap en una línea)
 //   q          = escribir los QR del badge con '#' y '.' para comprobarlos
 static bool screenshotPending = false;
+static bool simulateBattery = false;   // comando E: hacer como si fuera con batería aunque haya USB (para probar el ahorro)
 
 // Por qué se reinició la última vez. Si fue un fallo ("panic"), el volcado queda
 // en la partición coredump y se lee con esptool + esp-coredump (ver README).
@@ -164,7 +166,7 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("  Telegram: %s, PGP: %s\n", badge::me().telegram.c_str(), badge::me().pgp.length() ? badge::me().pgp.c_str() : "(ninguna)");
       Serial.printf("  WiFi:  %s%s\n", ssid.length() ? ssid.c_str() : "(ninguna)", password.length() ? " (con contraseña)" : "");
       Serial.printf("  Nostr: %s\n", NOSTR[(int)nostrzaps::status()]);
-      static const char* const RADIO[] = {"exclusiva", "sin WiFi", "conectando", "conectada"};
+      static const char* const RADIO[] = {"exclusiva", "sin WiFi", "conectando", "conectada", "dormida (ahorro)"};
       Serial.printf("  Radio: %s, canal %u, %d badges cerca\n", RADIO[(int)radio::status()], nearby::channel(), nearby::count());
       const nearby::Neighbor* n = nearby::closest();
       if (n) Serial.printf("  Pegado: #%03u %s (%d dBm)\n", n->number, n->name, n->rssi);
@@ -202,6 +204,10 @@ static ButtonEvent readSerialCommand() {
       Serial.printf("RUIDO media %.0f mV, min %lu, max %lu, desviación %.1f mV\n", mean, (unsigned long)mn, (unsigned long)mx, sd);
       return ButtonEvent::None;
     }
+    case 'E':
+      simulateBattery = !simulateBattery;
+      Serial.printf("Simular batería: %s\n", simulateBattery ? "SI" : "no");
+      return ButtonEvent::None;
     case 'B': batterylog::dump();  return ButtonEvent::None;
     case 'b': batterylog::clear(); return ButtonEvent::None;
     case 'Z': badge::resetSats(); Serial.println("Sats a cero"); return ButtonEvent::None;
@@ -253,8 +259,15 @@ void loop() {
 
   // Ahorro con batería: la luz de la pantalla según el rato sin tocar nada, y el
   // procesador a 80 MHz (le sobra; el minero sí necesita los 240)
-  const bool usb = power::usbConnected();
+  const bool usb = power::usbConnected() && !simulateBattery;
+  // Con un QR en pantalla (alguien lo está escaneando, o esperas un pago) la
+  // pantalla no se apaga, y así tampoco la radio
+  const State st = app::current();
+  if (st == State::QrCodes || st == State::QrFullscreen) backlight::activity();
   backlight::loop(usb);
+  // La radio a ratos: con batería, la pantalla apagada y en una página de inicio
+  // (en el minero, el SETUP, el handshake... va como siempre)
+  radio::setEco(!usb && backlight::isOff() && (st == State::Profile || st == State::Peers || st == State::Stats));
   lowbattery::loop(usb);
   const uint32_t mhz = usb || miner::running() ? 240 : 80;
   if (getCpuFrequencyMhz() != mhz) setCpuFrequencyMhz(mhz);
