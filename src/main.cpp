@@ -260,14 +260,16 @@ void loop() {
   // Ahorro con batería: la luz de la pantalla según el rato sin tocar nada, y el
   // procesador a 80 MHz (le sobra; el minero sí necesita los 240)
   const bool usb = power::usbConnected() && !simulateBattery;
-  // Con un QR en pantalla (alguien lo está escaneando, o esperas un pago) la
-  // pantalla no se apaga, y así tampoco la radio
+  // La pantalla se apaga sola en todas partes, también con un QR (para cobrar,
+  // se pulsa un botón y vuelve con el QR y la radio entera). Decisión de Roger:
+  // si se queda encendida con el QR, la batería se va en una noche.
   const State st = app::current();
-  if (st == State::QrCodes || st == State::QrFullscreen) backlight::activity();
   backlight::loop(usb);
   // La radio a ratos: con batería, la pantalla apagada y en una página de inicio
-  // (en el minero, el SETUP, el handshake... va como siempre)
-  radio::setEco(!usb && backlight::isOff() && (st == State::Profile || st == State::Peers || st == State::Stats));
+  // o de QR (en el minero, el SETUP, el handshake... va como siempre)
+  radio::setEco(!usb && backlight::isOff() &&
+                (st == State::Profile || st == State::QrCodes || st == State::QrFullscreen ||
+                 st == State::Peers || st == State::Stats));
   lowbattery::loop(usb);
   const uint32_t mhz = usb || miner::running() ? 240 : 80;
   if (getCpuFrequencyMhz() != mhz) setCpuFrequencyMhz(mhz);
