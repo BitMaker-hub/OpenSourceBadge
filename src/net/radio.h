@@ -51,6 +51,7 @@ bool eco();
 Status status();
 bool   online();
 bool   hasNetwork();
+uint32_t onlineSince();         // millis() en que conectó (0 si no lo está): para medir cuánto tardan los demás
 
 // "Tengo conexiones abiertas" (true) o "ya las he cerrado" (false).
 // Cuando online() pasa a false, cada uno cierra lo suyo y avisa.

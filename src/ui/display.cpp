@@ -128,7 +128,15 @@ static void chargingBolt(int x, int y) {
       if (BOLT[j][i] == '#') lienzo.drawPixel(x + i, y + j, ink::Gold);
 }
 
-void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, uint16_t dotColor) {
+// El abanico de la WiFi, 9 x 7
+static void wifiIcon(int x, int y, uint16_t color) {
+  static const char* const FAN[] = {"..#####..", ".#.....#.", "#..###..#", "..#...#..", "....#....", "...###...", "....#...."};
+  for (int j = 0; j < 7; j++)
+    for (int i = 0; i < 9; i++)
+      if (FAN[j][i] == '#') lienzo.drawPixel(x + i, y + j, color);
+}
+
+void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, uint16_t dotColor, uint8_t wifi) {
   rect(0, 0, SCREEN_W, 17, ink::Card);
   rect(0, 17, SCREEN_W, 1, ink::Line);
   text(title, 6, 1, Font::Body, titleColor);
@@ -150,7 +158,14 @@ void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, ui
     text(pct, right, 1, Font::Body, ink::Dim, Align::Right);
     right -= textWidth(pct, Font::Body);
   }
-  if (dotColor) lienzo.fillCircle(right - 7, 8, 3, dotColor);
+  if (dotColor) {
+    lienzo.fillCircle(right - 7, 8, 3, dotColor);
+    right -= 11;
+  }
+  // La WiFi: blanca conectada, gris parpadeando mientras conecta, gris quieta dormida
+  if (wifi == 1)                            wifiIcon(right - 12, 5, ink::Fg);
+  else if (wifi == 2 && millis() / 500 % 2) wifiIcon(right - 12, 5, ink::Dim);
+  else if (wifi == 3)                       wifiIcon(right - 12, 5, ink::Line);
   batteryIcon(148, 5, batteryPercent, charge);
 }
 

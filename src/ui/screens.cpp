@@ -10,6 +10,7 @@
 #include "../net/nostr_zaps.h"
 #include "../net/lnbits.h"
 #include "../net/miner.h"
+#include "../net/radio.h"
 
 namespace screens {
 
@@ -41,7 +42,16 @@ void header(const String& title, uint16_t color) {
     case nostrzaps::Status::ConnectingRelay: dot = ink::Dim;   break;
     default:                                 break;
   }
-  display::header(title, color, power::batteryPercent(), dot);
+  uint8_t wifi = 0;
+  if (radio::hasNetwork()) {
+    switch (radio::status()) {
+      case radio::Status::Online:     wifi = 1; break;
+      case radio::Status::Connecting: wifi = 2; break;
+      case radio::Status::Sleeping:   wifi = 3; break;
+      default:                        break;
+    }
+  }
+  display::header(title, color, power::batteryPercent(), dot, wifi);
 }
 
 // Texto partido en líneas y centrado

@@ -11,16 +11,22 @@ static const uint32_t RETRY_MS = 20000;   // si no conecta, se vuelve a intentar
 
 // AHORRO (con batería y la pantalla apagada en las páginas de inicio): la radio
 // solo se enciende a ratos. Medido en el #980: con la radio siempre encendida
-// el badge gasta ~117 mA y la radio es casi todo.
-//   - cada 30 s, 10 s de radio para el peer cercano (todos en el canal 1, sin
-//     conectar a la WiFi: dos badges pegados coinciden en un minuto o dos)
-//   - cada 5 min, en vez de esa ventana, 25 s conectado a la WiFi para recoger
-//     los zaps (Nostr los da al reconectar: llegan tarde pero no se pierden)
-static const uint32_t ECO_PERIOD_MS     = 30000;
-static const uint32_t ECO_ON_MS         = 10000;
-static const uint32_t ECO_ZAPS_EVERY_MS = 300000;
-static const uint32_t ECO_ZAPS_ON_MS    = 25000;
-static const uint8_t  ECO_CHANNEL       = 1;
+// el badge gasta ~117 mA y la radio es casi todo. Decisión de Roger: 10 s
+// encendida y 10 s apagada. En cada ventana, como siempre: si hay WiFi
+// configurada se conecta (zaps casi al momento; Nostr da al reconectar los que
+// llegaron con la radio apagada) y el peer cercano va en el canal de la WiFi;
+// si no la hay, el peer cercano va quieto en el canal 1 (sin saltar: con
+// ventanas cortas, saltando no coincidirían nunca).
+static const uint32_t ECO_PERIOD_MS = 20000;
+static const uint32_t ECO_ON_MS     = 10000;
+static const uint8_t  ECO_CHANNEL   = 1;
+
+// La WiFi de la última vez (canal y router): reconectar sin buscar redes es
+// mucho más rápido, y en las ventanas cada segundo cuenta
+static int32_t lastChannel = 0;
+static uint8_t lastBssid[6];
+static uint32_t windowAt = 0;      // millis() en que se encendió la radio (para medir)
+static volatile uint32_t onlineAt = 0;
 
 static String ssid, password;             // los escribe reloadNetwork() con la radio en exclusivo o al arrancar
 static volatile bool   wantExclusive = false;
@@ -65,8 +71,7 @@ static void syncTime() {
 
 static void task(void*) {
   uint32_t lastTry = 0;
-  uint32_t cycleStart = 0, lastZapCycle = 0;
-  bool     zapCycle = false;
+  uint32_t cycleStart = 0;
   for (;;) {
     // EXCLUSIVO: soltar la WiFi y apagar
     if (wantExclusive) {
@@ -77,16 +82,14 @@ static void task(void*) {
       continue;
     }
 
-    // AHORRO: a ratos
+    // AHORRO: a ratos. Fuera de la ventana, apagada; dentro, como en NORMAL.
     if (wantEco) {
       const uint32_t now = millis();
       if (cycleStart == 0 || now - cycleStart >= ECO_PERIOD_MS) {     // empieza otro ciclo
         cycleStart = now;
-        zapCycle = !ssid.isEmpty() && (lastZapCycle == 0 || now - lastZapCycle >= ECO_ZAPS_EVERY_MS);
-        if (zapCycle) lastZapCycle = now;
         lastTry = 0;
       }
-      if (now - cycleStart >= (zapCycle ? ECO_ZAPS_ON_MS : ECO_ON_MS)) {   // fase dormida
+      if (now - cycleStart >= ECO_ON_MS) {                             // fase dormida
         if (!isOff) {
           state = Status::Sleeping;
           turnOff();
@@ -95,23 +98,12 @@ static void task(void*) {
         vTaskDelay(pdMS_TO_TICKS(100));
         continue;
       }
-      if (!zapCycle) {                                                     // ventana del peer cercano
-        if (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) {
-          state = Status::NoNetwork;   // que Nostr y compañía suelten antes de desconectar
-          waitUsers();
-          WiFi.disconnect();
-        }
-        if (isOff || WiFi.getMode() != WIFI_STA) {
-          WiFi.mode(WIFI_STA);
-          WiFi.setSleep(false);
-          isOff = false;
-        }
-        esp_wifi_set_channel(ECO_CHANNEL, WIFI_SECOND_CHAN_NONE);
-        state = Status::NoNetwork;
-        vTaskDelay(pdMS_TO_TICKS(200));
-        continue;
+      // Ventana sin WiFi configurada: el peer cercano, quieto en el canal 1
+      if (ssid.isEmpty() && !isOff && WiFi.getMode() == WIFI_STA) {
+        uint8_t ch; wifi_second_chan_t second;
+        esp_wifi_get_channel(&ch, &second);
+        if (ch != ECO_CHANNEL) esp_wifi_set_channel(ECO_CHANNEL, WIFI_SECOND_CHAN_NONE);
       }
-      // ventana de los zaps: lo mismo que en NORMAL, abajo
     } else {
       cycleStart = 0;
     }
@@ -122,23 +114,36 @@ static void task(void*) {
       WiFi.setSleep(false);       // sin ahorro del módem: si no, se pierden mensajes de ESP-NOW
       isOff = false;
       lastTry = 0;
+      windowAt = millis();
+      if (wantEco && ssid.isEmpty()) esp_wifi_set_channel(ECO_CHANNEL, WIFI_SECOND_CHAN_NONE);
     }
     if (reloadPending) {
       WiFi.disconnect();
       lastTry = 0;
+      lastChannel = 0;            // otra WiFi: nada de atajos
       reloadPending = false;
     }
 
     if (ssid.isEmpty()) {
       state = Status::NoNetwork;
     } else if (WiFi.status() == WL_CONNECTED) {
+      if (state != Status::Online) {
+        onlineAt = millis();
+        lastChannel = WiFi.channel();
+        memcpy(lastBssid, WiFi.BSSID(), 6);
+        Serial.printf("[radio] WiFi conectada en %lu ms (canal %ld)\n", (unsigned long)(onlineAt - windowAt), (long)lastChannel);
+      }
       state = Status::Online;
       syncTime();
     } else {
       if (lastTry == 0 || millis() - lastTry > RETRY_MS) {
-        WiFi.begin(ssid.c_str(), password.c_str());
+        // Con el canal y el router de la última vez no hace falta buscar redes
+        if (lastChannel) WiFi.begin(ssid.c_str(), password.c_str(), lastChannel, lastBssid);
+        else             WiFi.begin(ssid.c_str(), password.c_str());
+        if (lastTry == 0) windowAt = millis();
         lastTry = millis();
       }
+      if (lastChannel && millis() - lastTry > 6000) lastChannel = 0;   // ¿cambió el router? la próxima, buscando
       state = Status::Connecting;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -170,6 +175,7 @@ void setEco(bool on) {
 bool eco() { return wantEco; }
 
 Status status()   { return state; }
+uint32_t onlineSince() { return state == Status::Online ? onlineAt : 0; }
 bool online()     { return state == Status::Online; }
 bool hasNetwork() { return !ssid.isEmpty(); }
 

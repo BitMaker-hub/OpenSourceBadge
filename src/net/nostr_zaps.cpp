@@ -146,7 +146,8 @@ static uint32_t listenedUntil = 0;   // hasta cuándo (hora Unix) hemos estado e
 static void onRelayEvent(int relay, WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_CONNECTED: {
-      Serial.printf("[nostr] conectado a %s\n", RELAYS[relay].host);
+      Serial.printf("[nostr] conectado a %s (%lu ms después de la WiFi)\n", RELAYS[relay].host,
+                    radio::onlineSince() ? (unsigned long)(millis() - radio::onlineSince()) : 0UL);
       // Recibos de zap para mí. Si ya habíamos escuchado antes (con ahorro la radio
       // se apaga a ratos), desde entonces, para no perder los que llegaron
       // mientras tanto; si no, solo los nuevos (limit 0).

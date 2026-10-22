@@ -79,7 +79,8 @@ int  wrap(const String& s, int maxWidth, Font f, String* lines, int maxLines);
 
 // ---- piezas ----
 // dotColor: un puntito antes de la batería (0 = sin punto). Lo usa Nostr para decir si escucha.
-void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, uint16_t dotColor = 0);
+// wifi: 0 = sin WiFi configurada (no sale), 1 = conectada, 2 = conectando, 3 = dormida (ahorro)
+void header(const String& title, uint16_t titleColor, uint8_t batteryPercent, uint16_t dotColor = 0, uint8_t wifi = 0);
 int  chip(const String& label, int centerX, int y, uint16_t color);      // devuelve el ancho
 void pageDots(int current, int count);
 void icon(Icon which, int x, int y, uint16_t color);
