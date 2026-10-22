@@ -50,6 +50,7 @@ static void sendProfile() {
 
   String body = "{";
   body += "\"number\":" + String(badge::number());
+  body += ",\"configured\":" + String(badge::isConfigured() ? "true" : "false");
   body += ",\"name\":" + json(badge::isConfigured() ? me.name : "");
   body += ",\"handle\":" + json(me.handle);
   body += ",\"npub\":" + json(me.npub);

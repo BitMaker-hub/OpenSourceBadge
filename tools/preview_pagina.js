@@ -28,7 +28,7 @@ const AVATARS = ${JSON.stringify(avatars)};
 const _fetch = window.fetch;
 window.fetch = (url, opt) => {
   if (url === "/api/profile" && (!opt || opt.method !== "POST"))
-    return Promise.resolve({json: () => ({number: 42, name: "satoshi.friends", handle: "@satoshi", npub: "", ln: "",
+    return Promise.resolve({json: () => ({number: 42, configured: location.hash !== "#nuevo", name: "satoshi.friends", handle: "@satoshi", npub: "", ln: "",
       tagline: "Stay humble, stack sats", telegram: "@satoshi", pgp: "", maddr: "", maddrDefault: "bc1qcnwjerakcqn5etns97ma3vfk9e4mp66ghscmft", role: "DEV", roles: ${JSON.stringify(roles)}})});
   if (url === "/api/profile") return new Promise(r => setTimeout(() => r({ok: true}), 400));
   if (url.startsWith("/api/networks")) return Promise.resolve({json: () => [{s: "iPhone de Roger", r: -48, o: false},
@@ -36,7 +36,10 @@ window.fetch = (url, opt) => {
   if (url === "/api/peers") return Promise.resolve({json: () => [
     {number: 764, name: "Satoshi", role: "ANON", color: "#989CA8", x: "@satoshi", telegram: "@nakamoto", npub: "npub1gzuushllat7pet0ccv9yuhygvc8ldeyhrgxuwg744dn5khnpk3gs3ea5ds",
      ln: "satoshi@getalby.com", pgp: "A1B2C3D4E5F60718293A4B5C6D7E8F9012345678", block: 9, met: "2026-10-21 11:42"},
-    {number: 308, name: "Bitmaker", role: "DEV", color: "#38BCF8", x: "@bitmaker", telegram: "", npub: "", ln: "", pgp: "", block: 8, met: ""}]});
+    {number: 308, name: "Bitmaker", role: "DEV", color: "#38BCF8", x: "@bitmaker", telegram: "", npub: "", ln: "", pgp: "", block: 8, met: ""},
+    {number: 42, name: "Hal Finney Fan", role: "MINER", color: "#F8CC10", x: "", telegram: "@runningbitcoin", npub: "", ln: "hal@coinos.io", pgp: "", block: 7, met: "2026-10-21 10:15"},
+    {number: 117, name: "Ana Nostr", role: "NOSTRICH", color: "#A088F8", x: "@ana_zaps", telegram: "@ana", npub: "npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m", ln: "ana@primal.net", pgp: "", block: 5, met: "2026-10-21 09:02"},
+    {number: 503, name: "Whale Watcher", role: "WHALE", color: "#E0E4E8", x: "@deep_cold", telegram: "", npub: "", ln: "", pgp: "", block: 3, met: "2026-10-20 18:40"}]});
   return _fetch(url, opt);
 };
 new MutationObserver(() => document.querySelectorAll("img[src^='/avatar.svg']").forEach(i => i.src = AVATARS[i.src.split("r=")[1]]))

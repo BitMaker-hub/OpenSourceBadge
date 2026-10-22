@@ -1,6 +1,16 @@
 #pragma once
 // La página de badge.local. Va entera aquí (HTML, estilo y JavaScript) porque
-// el badge la sirve tal cual, sin internet. Los datos los pide a /api/profile.
+// el badge la sirve tal cual, sin internet. Los datos los pide a /api/profile
+// y la gente que has conocido a /api/peers.
+//
+// Tres vistas, con pestañas arriba:
+//   - Quick setup: tres pasos (tú, zaps, minar) con Next / Skip. Sale la
+//     primera vez, con el badge sin configurar.
+//   - Settings: lo mismo y lo que no está en los pasos (Telegram, PGP, frase,
+//     pool), todo junto para cambiar algo luego.
+//   - People: la gente que has conocido, en una tabla, y las descargas.
+// Los campos son los mismos en las dos primeras: cada bloque dice en qué paso
+// sale (data-step) y los de "adv" solo salen en Settings. Un solo guardado.
 #include <Arduino.h>
 
 static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
@@ -9,13 +19,34 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Open Source Badge</title>
 <style>
-  :root{--bg:#0c0e13;--card:#151922;--line:#262c3a;--fg:#eef0f4;--dim:#8a93a6;--or:#f7931a;--gold:#ffc93c}
+  :root{--bg:#0c0e13;--card:#151922;--card2:#1b2030;--line:#262c3a;--fg:#eef0f4;--dim:#8a93a6;--or:#f7931a;--gold:#ffc93c;--ok:#57d38c}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,-apple-system,sans-serif}
   main{max-width:460px;margin:0 auto;padding:20px 16px 40px}
   h1{font-size:22px;margin:0 0 2px;color:var(--or)}
-  .sub{color:var(--dim);margin:0 0 20px}
+  .sub{color:var(--dim);margin:0 0 16px}
   h2{font-family:ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:24px 0 8px}
+  [hidden]{display:none!important}
+  .px{font-family:ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;letter-spacing:.04em}
+
+  /* Pestañas */
+  .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:18px;position:sticky;top:8px;z-index:2}
+  .tabs button{border:0;border-radius:9px;padding:10px 4px;background:none;color:var(--dim);font:600 14px system-ui;cursor:pointer}
+  .tabs button[aria-selected=true]{background:var(--card2);color:var(--fg);box-shadow:0 0 0 1px var(--line) inset}
+  .tabs .count{color:var(--or)}
+
+  /* Pasos del Quick setup */
+  .steps{display:flex;gap:6px;margin:0 0 6px}
+  .steps div{flex:1;font:600 12px system-ui;color:var(--dim);padding-top:8px;border-top:3px solid var(--line)}
+  .steps div.done{color:var(--fg);border-color:#6a4312}
+  .steps div.now{color:var(--or);border-color:var(--or)}
+  .wiz{display:flex;gap:8px;margin-top:24px}
+  .wiz button{flex:1;padding:14px;border-radius:10px;font:700 16px system-ui;cursor:pointer}
+  .wiz .back,.wiz .skip{background:none;border:1px solid var(--line);color:var(--dim);flex:0 0 auto;padding:14px 16px}
+  .primary{border:0;background:var(--or);color:#0c0e13}
+  button.save{margin-top:24px;width:100%;padding:14px;border-radius:10px;font:700 17px system-ui;cursor:pointer}
+
+  /* Formulario */
   .roles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .role{background:var(--card);border:2px solid var(--line);border-radius:10px;padding:8px 4px 6px;color:var(--fg);
         font:600 12px system-ui;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
@@ -26,9 +57,9 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   input:focus{outline:2px solid var(--or);border-color:transparent}
   .hint{font-size:12px;color:var(--dim);margin-top:4px}
   p.hint{font-size:13px;margin:0 0 4px}
-  button.save{margin-top:24px;width:100%;padding:14px;border:0;border-radius:10px;background:var(--or);color:#0c0e13;font:700 17px system-ui}
   #msg{text-align:center;margin-top:14px;min-height:22px}
-  .px{font-family:ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;letter-spacing:.04em}
+  .ok{color:var(--ok)}.err{color:#f87171}
+
   /* La vista previa imita la pantalla del badge: tarjeta con trama, marco del color del rol */
   .badge{margin:0 auto 8px;width:200px;background:var(--bg);border:3px solid #2a2f3b;border-radius:14px;padding:12px 10px 14px;text-align:center;
          box-shadow:0 0 0 6px #111318,0 10px 30px #0008}
@@ -41,17 +72,7 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   #pHandle{color:var(--dim);font-size:14px;min-height:20px}
   .chip{display:inline-block;margin-top:6px;background:var(--c,#9ca3af);color:var(--bg);font-size:10px;font-weight:700;padding:2px 6px;border-radius:2px}
   #pLine{color:var(--dim);font-size:13px;margin-top:10px;min-height:18px}
-  .ok{color:#57d38c}.err{color:#f87171}
-  /* Contactos */
-  .peer{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:8px;padding:10px 12px;margin:8px 0}
-  .peer b{font-size:16px}
-  .peer .meta{font-size:12px;color:var(--dim);font-family:ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace}
-  .peer .row{font-size:13px;margin-top:3px;overflow-wrap:anywhere}
-  .peer .row span{color:var(--dim)}
-  .peer a{color:var(--or)}
-  .dl{display:flex;gap:8px;margin-top:10px}
-  .dl a{flex:1;text-align:center;padding:11px;border-radius:10px;border:1px solid var(--or);color:var(--or);text-decoration:none;font-weight:600}
-  #empty{color:var(--dim);font-size:14px}
+
   /* Las WiFi que ve el badge */
   .nets{display:flex;flex-direction:column;gap:6px;margin-top:8px}
   .net{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);
@@ -63,10 +84,45 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
   .bars i{width:3px;background:var(--line);border-radius:1px}
   .bars i.on{background:var(--fg)}
   .rescan{margin-top:8px;background:none;border:0;color:var(--or);font:600 14px system-ui;padding:4px 0;cursor:pointer}
+
+  /* People */
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .stat b{display:block;font-size:24px}
+  .stat span{color:var(--dim);font-size:12px}
+  .met{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 14px}
+  .met span{font:700 10px ui-monospace,Menlo,Consolas,monospace;padding:3px 7px;border-radius:3px;border:1px solid var(--c);color:var(--c)}
+  .met span.yes{background:var(--c);color:var(--bg)}
+  .dl{display:flex;gap:8px;margin:0 0 12px}
+  .dl a{flex:1;text-align:center;padding:11px 6px;border-radius:10px;border:1px solid var(--or);color:var(--or);text-decoration:none;font-weight:600;font-size:15px}
+  #search{margin-bottom:10px}
+  table{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:14px}
+  th{text-align:left;color:var(--dim);font:600 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;padding:0 10px}
+  td{background:var(--card);padding:10px;vertical-align:top;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  td:first-child{border-left:4px solid var(--c);border-radius:8px 0 0 8px}
+  td:last-child{border-right:1px solid var(--line);border-radius:0 8px 8px 0;text-align:right;white-space:nowrap;color:var(--dim);font-size:12px}
+  tr.row{cursor:pointer}
+  tr.row td b{display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .who{color:var(--dim);font:11px ui-monospace,Menlo,Consolas,monospace}
+  td a{color:var(--or);text-decoration:none;display:block;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tr.more td{border-left:4px solid var(--c);border-radius:8px;font-size:13px;overflow-wrap:anywhere;color:var(--fg);text-align:left;white-space:normal}
+  tr.more td div{margin:2px 0}
+  tr.more td span{color:var(--dim)}
+  #empty{color:var(--dim);font-size:14px;text-align:center;padding:24px 8px}
 </style></head>
 <body><main>
   <h1>Open Source Badge</h1>
   <p class="sub">Proof of Peer &middot; Bitcoin Amsterdam 2026</p>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-view="setup">Quick setup</button>
+    <button role="tab" data-view="settings">Settings</button>
+    <button role="tab" data-view="people">People <span class="count" id="count"></span></button>
+  </nav>
+
+  <div class="steps" id="steps">
+    <div data-n="1">1 &middot; You</div><div data-n="2">2 &middot; Zaps</div><div data-n="3">3 &middot; Mining</div>
+  </div>
 
   <div class="badge" id="preview" aria-label="How your badge will look">
     <div class="top px"><b id="num">BADGE</b><span>&#9889; 100%</span></div>
@@ -77,64 +133,129 @@ static const char SETUP_PAGE[] PROGMEM = R"HTML(<!doctype html>
     <div id="pLine"></div>
   </div>
 
-  <h2>Pick your character</h2>
-  <div class="roles" id="roles"></div>
+  <!-- ============ El formulario: cada bloque dice en qué paso del Quick setup sale -->
+  <section class="sec" data-step="1">
+    <h2>Pick your character</h2>
+    <div class="roles" id="roles"></div>
+  </section>
 
-  <h2>About you</h2>
-  <label for="name">Name on the badge</label>
-  <input id="name" maxlength="20" autocomplete="nickname" required>
-  <label for="handle">X (Twitter)</label>
-  <input id="handle" maxlength="20" placeholder="@satoshi" autocapitalize="off">
-  <label for="npub">Nostr public key</label>
-  <input id="npub" maxlength="63" placeholder="npub1..." autocapitalize="off" spellcheck="false">
-  <label for="ln">Lightning address</label>
-  <input id="ln" maxlength="60" placeholder="you@wallet.com" autocapitalize="off" spellcheck="false">
-  <div class="hint" id="lnhint">People can zap you by scanning the QR on your badge.</div>
-  <label for="tagline">Your line</label>
-  <input id="tagline" maxlength="40" placeholder="Stay humble, stack sats">
-  <label for="telegram">Telegram</label>
-  <input id="telegram" maxlength="40" placeholder="@satoshi" autocapitalize="off" spellcheck="false">
-  <label for="pgp">PGP fingerprint</label>
-  <input id="pgp" maxlength="60" placeholder="40 hex digits, spaces are fine" autocapitalize="characters" spellcheck="false">
-  <div class="hint">Whoever you handshake with gets all of this, so they can check your PGP key later.</div>
+  <section class="sec" data-step="1">
+    <h2>About you</h2>
+    <label for="name">Name on the badge</label>
+    <input id="name" maxlength="20" autocomplete="nickname">
+    <label for="handle">X (Twitter)</label>
+    <input id="handle" maxlength="20" placeholder="@satoshi" autocapitalize="off">
+  </section>
 
-  <h2>Catch your zaps</h2>
-  <p class="hint">Your badge lights up when someone zaps your npub on Nostr. It needs internet for that:
-    your phone hotspot or the venue WiFi. The sats go to your own wallet; the badge only listens.</p>
-  <label>WiFi networks your badge can see</label>
-  <div class="nets" id="nets"><div class="hint">Looking for networks...</div></div>
-  <button type="button" class="rescan" id="rescan">Search again</button>
-  <label for="wifi">WiFi name</label>
-  <input id="wifi" maxlength="32" autocapitalize="off" spellcheck="false" placeholder="Tap one above or type it">
-  <label for="wifipass">WiFi password</label>
-  <input id="wifipass" type="password" maxlength="63" autocomplete="off">
+  <section class="sec adv">
+    <label for="telegram">Telegram</label>
+    <input id="telegram" maxlength="40" placeholder="@satoshi" autocapitalize="off" spellcheck="false">
+    <label for="tagline">Your line</label>
+    <input id="tagline" maxlength="40" placeholder="Stay humble, stack sats">
+    <label for="pgp">PGP fingerprint</label>
+    <input id="pgp" maxlength="60" placeholder="40 hex digits, spaces are fine" autocapitalize="characters" spellcheck="false">
+    <div class="hint">Whoever you handshake with gets all of this, so they can check your PGP key later.</div>
+  </section>
 
-  <h2>Mine Bitcoin</h2>
-  <p class="hint">Your badge solo-mines like a NerdMiner (LAB menu) on the Bitronics pool.</p>
-  <label for="maddr">Your Bitcoin address</label>
-  <input id="maddr" maxlength="90" autocapitalize="off" spellcheck="false">
-  <div class="hint">The grey one is the Bitronics address your badge mines to by default. Put yours here
-    and, if your badge ever finds a block, the reward is all yours.</div>
-  <label for="mpool">Pool</label>
-  <input id="mpool" maxlength="80" placeholder="pool.bitronics.store:3334" autocapitalize="off" spellcheck="false">
+  <section class="sec" data-step="2">
+    <h2>Get zapped</h2>
+    <p class="hint">Your badge lights up when someone zaps you. The sats go to your own wallet; the badge only listens.</p>
+    <label for="npub">Nostr public key</label>
+    <input id="npub" maxlength="63" placeholder="npub1..." autocapitalize="off" spellcheck="false">
+    <label for="ln">Lightning address</label>
+    <input id="ln" maxlength="60" placeholder="you@wallet.com" autocapitalize="off" spellcheck="false">
+    <div class="hint" id="lnhint">People can zap you by scanning the QR on your badge.</div>
+  </section>
 
-  <button class="save" id="save">Save to my badge</button>
+  <section class="sec" data-step="2">
+    <h2>Internet</h2>
+    <p class="hint">To hear your zaps the badge needs internet: your phone hotspot or the venue WiFi.</p>
+    <label>WiFi networks your badge can see</label>
+    <div class="nets" id="nets"><div class="hint">Looking for networks...</div></div>
+    <button type="button" class="rescan" id="rescan">Search again</button>
+    <label for="wifi">WiFi name</label>
+    <input id="wifi" maxlength="32" autocapitalize="off" spellcheck="false" placeholder="Tap one above or type it">
+    <label for="wifipass">WiFi password</label>
+    <input id="wifipass" type="password" maxlength="63" autocomplete="off">
+  </section>
+
+  <section class="sec" data-step="3">
+    <h2>Mine Bitcoin</h2>
+    <p class="hint">Your badge solo-mines like a NerdMiner (LAB menu) on the Bitronics pool.</p>
+    <label for="maddr">Your Bitcoin address</label>
+    <input id="maddr" maxlength="90" autocapitalize="off" spellcheck="false">
+    <div class="hint">The grey one is the Bitronics address your badge mines to by default. Put yours here
+      and, if your badge ever finds a block, the reward is all yours.</div>
+    <div class="adv">
+      <label for="mpool">Pool</label>
+      <input id="mpool" maxlength="80" placeholder="pool.bitronics.store:3334" autocapitalize="off" spellcheck="false">
+    </div>
+  </section>
+
+  <div class="wiz" id="wiz">
+    <button type="button" class="back" id="back">Back</button>
+    <button type="button" class="skip" id="skip">Skip</button>
+    <button type="button" class="primary" id="next">Next</button>
+  </div>
+  <button class="save primary" id="save">Save to my badge</button>
   <div id="msg" role="status"></div>
 
-  <h2>People you met</h2>
-  <p class="hint">Everyone you did a handshake with, and what they shared. Download them before you leave.</p>
-  <div id="peers"><div id="empty">Loading...</div></div>
-  <div class="dl" id="dl" hidden>
-    <a href="/contacts.vcf" download>Contacts (vCard)</a>
-    <a href="/contacts.csv" download>Spreadsheet (CSV)</a>
-  </div>
+  <!-- ============ People -->
+  <section id="people">
+    <div class="stats">
+      <div class="stat"><b id="nPeople">0</b><span>people met</span></div>
+      <div class="stat"><b id="nRoles">0/6</b><span>characters met</span></div>
+    </div>
+    <div class="met" id="met"></div>
+    <div class="dl" id="dl" hidden>
+      <a href="/contacts.vcf" download>&#8681; Contacts (vCard)</a>
+      <a href="/contacts.csv" download>&#8681; Spreadsheet (CSV)</a>
+    </div>
+    <input id="search" type="search" placeholder="Search by name, X, Telegram or #" hidden>
+    <table id="table" hidden>
+      <thead><tr><th>Who</th><th>Contact</th><th>Met</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty">Loading...</div>
+  </section>
 </main>
 <script>
 const $ = id => document.getElementById(id);
-let role = "ANON";
+let role = "ANON", colors = {}, roleList = [], peers = [];
+let view = "settings", step = 1;
 
-let colors = {};
+// ---------------------------------------------------------------- vistas
+function render() {
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.view === view));
+  const form = view !== "people";
+  document.querySelectorAll(".sec").forEach(s => {
+    s.hidden = !form || (view === "setup" && s.dataset.step !== String(step));
+  });
+  document.querySelectorAll(".adv").forEach(a => { if (!a.classList.contains("sec")) a.hidden = view !== "settings"; });
+  $("steps").hidden = view !== "setup";
+  document.querySelectorAll(".steps div").forEach(d => {
+    const n = +d.dataset.n;
+    d.className = n === step ? "now" : n < step ? "done" : "";
+  });
+  $("preview").hidden = !(view === "settings" || (view === "setup" && step === 1));
+  $("wiz").hidden = view !== "setup";
+  $("back").hidden = step === 1;
+  $("skip").hidden = step !== 2;
+  $("next").textContent = step === 3 ? "Save to my badge" : "Next";
+  $("save").hidden = view !== "settings";
+  $("people").hidden = view !== "people";
+  $("msg").hidden = view === "people";
+  $("msg").textContent = "";
+}
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => { view = b.dataset.view; render(); scrollTo(0, 0); });
+$("back").onclick = () => { step--; render(); scrollTo(0, 0); };
+$("skip").onclick = () => { step++; render(); scrollTo(0, 0); };
+$("next").onclick = () => {
+  if (step < 3) { step++; render(); scrollTo(0, 0); }
+  else save();
+};
 
+// ---------------------------------------------------------------- tu perfil
 function pick(r) {
   role = r;
   document.querySelectorAll(".role").forEach(b => b.setAttribute("aria-pressed", b.dataset.role === r));
@@ -153,6 +274,7 @@ function refresh() {
 
 fetch("/api/profile").then(r => r.json()).then(p => {
   $("num").textContent = "BADGE #" + String(p.number).padStart(3, "0");
+  roleList = p.roles;
   p.roles.forEach(([r, color]) => {
     colors[r] = color;
     const b = document.createElement("button");
@@ -173,8 +295,12 @@ fetch("/api/profile").then(r => r.json()).then(p => {
   $("wifipass").placeholder = p.wifiSaved ? "Saved (leave empty to keep it)" : "";
   pick(p.role);
   refresh();
+  view = p.configured ? "settings" : "setup";    // la primera vez, los tres pasos
+  render();
+  showPeople();
 });
 
+// ---------------------------------------------------------------- WiFi
 // Las redes que ve el badge, de la más fuerte a la más débil. Al tocar una se
 // rellena el nombre y se pasa a la contraseña (si la pide). La búsqueda tarda
 // unos segundos, así que se pregunta varias veces.
@@ -199,8 +325,8 @@ function showNetworks(list) {
     $("nets").append(b);
   });
 }
-function loadNetworks(tries, rescan) {
-  fetch("/api/networks" + (rescan ? "?rescan=1" : "")).then(r => r.json()).then(list => {
+function loadNetworks(tries) {
+  fetch("/api/networks").then(r => r.json()).then(list => {
     if (!list.length && tries > 0) return setTimeout(() => loadNetworks(tries - 1), 2000);
     if (!list.length) { $("nets").innerHTML = '<div class="hint">No networks found. Type the name below.</div>'; return; }
     showNetworks(list);
@@ -213,11 +339,18 @@ $("rescan").onclick = () => {
   setTimeout(() => loadNetworks(5), 3000);
 };
 
-$("save").onclick = () => {
+// ---------------------------------------------------------------- guardar
+function show(t, c) { $("msg").textContent = t; $("msg").className = c; }
+function fail(t, goToStep) {
+  if (view === "setup" && goToStep) { step = goToStep; render(); }
+  show(t, "err");
+}
+$("save").onclick = save;
+function save() {
   const npub = $("npub").value.trim();
+  if (npub && !npub.startsWith("npub1")) return fail("That Nostr key should start with npub1", 2);
   const pgp = $("pgp").value.replace(/[^0-9a-f]/gi, "");
-  if (pgp && pgp.length !== 40) { show("A PGP fingerprint has 40 hex digits", "err"); return; }
-  if (npub && !npub.startsWith("npub1")) { show("That Nostr key should start with npub1", "err"); return; }
+  if (pgp && pgp.length !== 40) return fail("A PGP fingerprint has 40 hex digits");
   const body = new URLSearchParams({
     role, name: $("name").value, handle: $("handle").value, npub, ln: $("ln").value, tagline: $("tagline").value,
     telegram: $("telegram").value, pgp: $("pgp").value,
@@ -225,29 +358,55 @@ $("save").onclick = () => {
     maddr: $("maddr").value, mpool: $("mpool").value,
     now: Math.floor(Date.now() / 1000), tz: -new Date().getTimezoneOffset()
   });
-  fetch("/api/profile", {method: "POST", body}).then(r => r.ok ? show("Saved! Look at your badge.", "ok")
-                                                         : show("Could not save, try again.", "err"))
+  fetch("/api/profile", {method: "POST", body})
+    .then(r => r.ok ? show("Saved! Look at your badge: it closes this page in a moment.", "ok") : show("Could not save, try again.", "err"))
     .catch(() => show("Could not save, try again.", "err"));
-};
-function show(t, c) { $("msg").textContent = t; $("msg").className = c; }
+}
 
-// La gente que has conocido
-function esc(t) { const d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
-fetch("/api/peers").then(r => r.json()).then(list => {
-  if (!list.length) { $("empty").textContent = "Nobody yet. Press PEER next to another badge!"; return; }
-  $("peers").innerHTML = list.map(p => {
-    const rows = [];
-    if (p.x) rows.push('<span>X</span> <a href="https://x.com/' + esc(p.x.replace("@", "")) + '">' + esc(p.x) + "</a>");
-    if (p.telegram) rows.push('<span>Telegram</span> <a href="https://t.me/' + esc(p.telegram.replace("@", "")) + '">' + esc(p.telegram) + "</a>");
-    if (p.npub) rows.push("<span>Nostr</span> " + esc(p.npub));
-    if (p.ln) rows.push("<span>Lightning</span> " + esc(p.ln));
-    if (p.pgp) rows.push("<span>PGP</span> " + esc(p.pgp.match(/.{4}/g).join(" ")));
-    return '<div class="peer" style="--c:' + p.color + '"><b>' + esc(p.name) + "</b>" +
-      '<div class="meta">#' + String(p.number).padStart(3, "0") + " · " + p.role + " · block " + p.block + (p.met ? " · " + p.met : "") + "</div>" +
-      rows.map(r => '<div class="row">' + r + "</div>").join("") + "</div>";
+// ---------------------------------------------------------------- la gente que has conocido
+function esc(t) { const d = document.createElement("div"); d.textContent = t || ""; return d.innerHTML; }
+const user = s => (s || "").replace("@", "");
+
+function showPeople() {
+  // Los seis personajes: los que ya has conocido, rellenos
+  const metRoles = new Set(peers.map(p => p.role));
+  $("met").innerHTML = roleList.map(([r, c]) => '<span style="--c:' + c + '"' + (metRoles.has(r) ? ' class="yes"' : "") + ">" + r + "</span>").join("");
+  $("nPeople").textContent = peers.length;
+  $("nRoles").textContent = metRoles.size + "/" + (roleList.length || 6);
+  $("count").textContent = peers.length ? "(" + peers.length + ")" : "";
+  const has = peers.length > 0;
+  $("dl").hidden = $("search").hidden = $("table").hidden = !has;
+  if (!has) { $("empty").textContent = "Nobody yet. Stand next to another badge and press PEER!"; return; }
+  drawRows();
+}
+
+function drawRows() {
+  const q = $("search").value.trim().toLowerCase();
+  const list = peers.filter(p => !q || [p.name, p.x, p.telegram, "#" + p.number, String(p.number)].some(v => (v || "").toLowerCase().includes(q)));
+  $("rows").innerHTML = list.map((p, i) => {
+    const contact = [p.x ? '<a href="https://x.com/' + esc(user(p.x)) + '">X ' + esc(p.x) + "</a>" : "",
+                     p.telegram ? '<a href="https://t.me/' + esc(user(p.telegram)) + '">TG ' + esc(p.telegram) + "</a>" : ""].join("") ||
+                    '<span class="who">&mdash;</span>';
+    const more = [p.npub ? "<div><span>Nostr</span> " + esc(p.npub) + "</div>" : "",
+                  p.ln ? "<div><span>Lightning</span> " + esc(p.ln) + "</div>" : "",
+                  p.pgp ? "<div><span>PGP</span> " + esc(p.pgp.match(/.{4}/g).join(" ")) + "</div>" : "",
+                  "<div><span>Block</span> " + p.block + "</div>"].join("");
+    return '<tr class="row" data-i="' + i + '" style="--c:' + p.color + '">' +
+      "<td><b>" + esc(p.name) + '</b><span class="who">#' + String(p.number).padStart(3, "0") + " &middot; " + p.role + "</span></td>" +
+      "<td>" + contact + "</td><td>" + (p.met ? esc(p.met.slice(5)) : "&ndash;") + "</td></tr>" +
+      '<tr class="more" hidden style="--c:' + p.color + '"><td colspan="3">' + more + "</td></tr>";
   }).join("");
-  $("dl").hidden = false;
-}).catch(() => { $("empty").textContent = "Could not load them."; });
+  $("empty").textContent = list.length ? "" : "Nobody matches that.";
+  // Tocar una fila enseña lo demás (Nostr, Lightning, PGP)
+  document.querySelectorAll("tr.row").forEach(tr => tr.onclick = e => {
+    if (e.target.closest("a")) return;
+    tr.nextElementSibling.hidden = !tr.nextElementSibling.hidden;
+  });
+}
+$("search").oninput = drawRows;
+
+fetch("/api/peers").then(r => r.json()).then(list => { peers = list; showPeople(); })
+  .catch(() => { $("empty").textContent = "Could not load them."; });
 </script>
 </body></html>
 )HTML";
