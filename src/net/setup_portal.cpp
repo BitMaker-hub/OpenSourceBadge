@@ -64,6 +64,7 @@ static void sendProfile() {
   body += ",\"wallet\":" + json(lnbits::address());
   body += ",\"mpool\":" + json(miner::pool() + ":" + String(miner::port()));
   body += ",\"maddr\":" + json(miner::ownAddress());
+  body += ",\"maddrDefault\":" + json(miner::DEFAULT_ADDRESS);
   body += ",\"wifiSaved\":" + String(password.length() ? "true" : "false");
   body += ",\"roles\":" + roles + "}";
   server.send(200, "application/json", body);
@@ -226,15 +227,22 @@ static void sendCsv() {
 }
 
 // Las WiFi que ve el badge, de la más fuerte a la más débil, sin repetir
+// Las WiFi que ve el badge, con su señal y si piden contraseña: [{"s":nombre,"r":dBm,"o":abierta}].
+// ?rescan=1 vuelve a buscar. Las de otros badges en modo SETUP (BADGE-...) no salen.
 static void sendNetworks() {
+  if (server.hasArg("rescan")) {
+    WiFi.scanDelete();
+    WiFi.scanNetworks(true);
+  }
   const int n = WiFi.scanComplete();
   if (n == WIFI_SCAN_FAILED) WiFi.scanNetworks(true);      // no hay búsqueda en marcha: empezamos una
   String body = "[";
   for (int i = 0; i < n; i++) {
     const String ssid = WiFi.SSID(i);
-    if (ssid.isEmpty() || body.indexOf(json(ssid)) >= 0) continue;
+    if (ssid.isEmpty() || ssid.startsWith("BADGE-") || body.indexOf("\"s\":" + json(ssid)) >= 0) continue;
     if (body.length() > 1) body += ",";
-    body += json(ssid);
+    body += "{\"s\":" + json(ssid) + ",\"r\":" + String(WiFi.RSSI(i)) +
+            ",\"o\":" + (WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "true" : "false") + "}";
   }
   server.send(200, "application/json", body + "]");
 }

@@ -29,9 +29,10 @@ const _fetch = window.fetch;
 window.fetch = (url, opt) => {
   if (url === "/api/profile" && (!opt || opt.method !== "POST"))
     return Promise.resolve({json: () => ({number: 42, name: "satoshi.friends", handle: "@satoshi", npub: "", ln: "",
-      tagline: "Stay humble, stack sats", telegram: "@satoshi", pgp: "", role: "DEV", roles: ${JSON.stringify(roles)}})});
+      tagline: "Stay humble, stack sats", telegram: "@satoshi", pgp: "", maddr: "", maddrDefault: "bc1qcnwjerakcqn5etns97ma3vfk9e4mp66ghscmft", role: "DEV", roles: ${JSON.stringify(roles)}})});
   if (url === "/api/profile") return new Promise(r => setTimeout(() => r({ok: true}), 400));
-  if (url === "/api/networks") return Promise.resolve({json: () => ["BitcoinAmsterdam-Guest", "iPhone", "Bitronics"]});
+  if (url.startsWith("/api/networks")) return Promise.resolve({json: () => [{s: "iPhone de Roger", r: -48, o: false},
+    {s: "BitcoinAmsterdam-Guest", r: -61, o: true}, {s: "Bitronics", r: -74, o: false}, {s: "Venue-Staff", r: -83, o: false}]});
   if (url === "/api/peers") return Promise.resolve({json: () => [
     {number: 764, name: "Satoshi", role: "ANON", color: "#989CA8", x: "@satoshi", telegram: "@nakamoto", npub: "npub1gzuushllat7pet0ccv9yuhygvc8ldeyhrgxuwg744dn5khnpk3gs3ea5ds",
      ln: "satoshi@getalby.com", pgp: "A1B2C3D4E5F60718293A4B5C6D7E8F9012345678", block: 9, met: "2026-10-21 11:42"},

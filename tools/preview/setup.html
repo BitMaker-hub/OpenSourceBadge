@@ -47,6 +47,17 @@
   .dl{display:flex;gap:8px;margin-top:10px}
   .dl a{flex:1;text-align:center;padding:11px;border-radius:10px;border:1px solid var(--or);color:var(--or);text-decoration:none;font-weight:600}
   #empty{color:var(--dim);font-size:14px}
+  /* Las WiFi que ve el badge */
+  .nets{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .net{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--line);
+       background:var(--card);color:var(--fg);font:15px system-ui;text-align:left;cursor:pointer}
+  .net[aria-pressed=true]{border-color:var(--or);box-shadow:0 0 0 1px var(--or) inset}
+  .net .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .net .meta{color:var(--dim);font-size:12px;font-family:ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace}
+  .bars{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+  .bars i{width:3px;background:var(--line);border-radius:1px}
+  .bars i.on{background:var(--fg)}
+  .rescan{margin-top:8px;background:none;border:0;color:var(--or);font:600 14px system-ui;padding:4px 0;cursor:pointer}
 </style></head>
 <body><main>
   <h1>Open Source Badge</h1>
@@ -85,16 +96,20 @@
   <h2>Catch your zaps</h2>
   <p class="hint">Your badge lights up when someone zaps your npub on Nostr. It needs internet for that:
     your phone hotspot or the venue WiFi. The sats go to your own wallet; the badge only listens.</p>
+  <label>WiFi networks your badge can see</label>
+  <div class="nets" id="nets"><div class="hint">Looking for networks...</div></div>
+  <button type="button" class="rescan" id="rescan">Search again</button>
   <label for="wifi">WiFi name</label>
-  <input id="wifi" maxlength="32" list="nets" autocapitalize="off" spellcheck="false" placeholder="Pick or type a network">
-  <datalist id="nets"></datalist>
+  <input id="wifi" maxlength="32" autocapitalize="off" spellcheck="false" placeholder="Tap one above or type it">
   <label for="wifipass">WiFi password</label>
   <input id="wifipass" type="password" maxlength="63" autocomplete="off">
 
   <h2>Mine Bitcoin</h2>
-  <p class="hint">Your badge solo-mines like a NerdMiner (LAB menu) on the Bitronics pool. Leave the address empty and it mines for Bitronics; put yours and, if it ever finds a block, the reward is yours.</p>
+  <p class="hint">Your badge solo-mines like a NerdMiner (LAB menu) on the Bitronics pool.</p>
   <label for="maddr">Your Bitcoin address</label>
-  <input id="maddr" maxlength="90" placeholder="Empty = mine for Bitronics" autocapitalize="off" spellcheck="false">
+  <input id="maddr" maxlength="90" autocapitalize="off" spellcheck="false">
+  <div class="hint">The grey one is the Bitronics address your badge mines to by default. Put yours here
+    and, if your badge ever finds a block, the reward is all yours.</div>
   <label for="mpool">Pool</label>
   <input id="mpool" maxlength="80" placeholder="pool.bitronics.store:3334" autocapitalize="off" spellcheck="false">
 
@@ -115,9 +130,10 @@ const _fetch = window.fetch;
 window.fetch = (url, opt) => {
   if (url === "/api/profile" && (!opt || opt.method !== "POST"))
     return Promise.resolve({json: () => ({number: 42, name: "satoshi.friends", handle: "@satoshi", npub: "", ln: "",
-      tagline: "Stay humble, stack sats", telegram: "@satoshi", pgp: "", role: "DEV", roles: [["DEV","#38BCF8"],["MINER","#F8CC10"],["PLEB","#F09018"],["WHALE","#E0E4E8"],["NOSTRICH","#A088F8"],["ANON","#989CA8"]]})});
+      tagline: "Stay humble, stack sats", telegram: "@satoshi", pgp: "", maddr: "", maddrDefault: "bc1qcnwjerakcqn5etns97ma3vfk9e4mp66ghscmft", role: "DEV", roles: [["DEV","#38BCF8"],["MINER","#F8CC10"],["PLEB","#F09018"],["WHALE","#E0E4E8"],["NOSTRICH","#A088F8"],["ANON","#989CA8"]]})});
   if (url === "/api/profile") return new Promise(r => setTimeout(() => r({ok: true}), 400));
-  if (url === "/api/networks") return Promise.resolve({json: () => ["BitcoinAmsterdam-Guest", "iPhone", "Bitronics"]});
+  if (url.startsWith("/api/networks")) return Promise.resolve({json: () => [{s: "iPhone de Roger", r: -48, o: false},
+    {s: "BitcoinAmsterdam-Guest", r: -61, o: true}, {s: "Bitronics", r: -74, o: false}, {s: "Venue-Staff", r: -83, o: false}]});
   if (url === "/api/peers") return Promise.resolve({json: () => [
     {number: 764, name: "Satoshi", role: "ANON", color: "#989CA8", x: "@satoshi", telegram: "@nakamoto", npub: "npub1gzuushllat7pet0ccv9yuhygvc8ldeyhrgxuwg744dn5khnpk3gs3ea5ds",
      ln: "satoshi@getalby.com", pgp: "A1B2C3D4E5F60718293A4B5C6D7E8F9012345678", block: 9, met: "2026-10-21 11:42"},
@@ -162,6 +178,7 @@ fetch("/api/profile").then(r => r.json()).then(p => {
   ["name", "handle", "npub", "ln", "tagline", "telegram", "pgp"].forEach(k => { $(k).value = p[k] || ""; $(k).oninput = refresh; });
   $("wifi").value = p.wifi || "";
   $("maddr").value = p.maddr || "";
+  $("maddr").placeholder = p.maddrDefault || "";
   $("mpool").value = p.mpool || "";
   if (p.wallet) {
     $("ln").placeholder = p.wallet;
@@ -172,15 +189,43 @@ fetch("/api/profile").then(r => r.json()).then(p => {
   refresh();
 });
 
-// Las redes que ve el badge (tarda unos segundos la primera vez)
-function loadNetworks(tries) {
-  fetch("/api/networks").then(r => r.json()).then(list => {
+// Las redes que ve el badge, de la más fuerte a la más débil. Al tocar una se
+// rellena el nombre y se pasa a la contraseña (si la pide). La búsqueda tarda
+// unos segundos, así que se pregunta varias veces.
+function bars(rssi) {
+  const n = rssi > -55 ? 4 : rssi > -67 ? 3 : rssi > -78 ? 2 : 1;
+  return '<span class="bars">' + [4, 7, 10, 14].map((h, i) => '<i style="height:' + h + 'px"' + (i < n ? ' class="on"' : "") + "></i>").join("") + "</span>";
+}
+function showNetworks(list) {
+  list.sort((a, b) => b.r - a.r);
+  $("nets").innerHTML = "";
+  list.slice(0, 8).forEach(n => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "net";
+    b.setAttribute("aria-pressed", n.s === $("wifi").value);
+    b.innerHTML = bars(n.r) + '<span class="name"></span><span class="meta">' + (n.o ? "open" : "&#128274;") + "</span>";
+    b.querySelector(".name").textContent = n.s;
+    b.onclick = () => {
+      $("wifi").value = n.s;
+      document.querySelectorAll(".net").forEach(x => x.setAttribute("aria-pressed", x === b));
+      if (!n.o) $("wifipass").focus();
+    };
+    $("nets").append(b);
+  });
+}
+function loadNetworks(tries, rescan) {
+  fetch("/api/networks" + (rescan ? "?rescan=1" : "")).then(r => r.json()).then(list => {
     if (!list.length && tries > 0) return setTimeout(() => loadNetworks(tries - 1), 2000);
-    $("nets").innerHTML = "";
-    list.forEach(n => { const o = document.createElement("option"); o.value = n; $("nets").append(o); });
+    if (!list.length) { $("nets").innerHTML = '<div class="hint">No networks found. Type the name below.</div>'; return; }
+    showNetworks(list);
   }).catch(() => {});
 }
-loadNetworks(5);
+loadNetworks(6);
+$("rescan").onclick = () => {
+  $("nets").innerHTML = '<div class="hint">Looking for networks...</div>';
+  fetch("/api/networks?rescan=1").catch(() => {});
+  setTimeout(() => loadNetworks(5), 3000);
+};
 
 $("save").onclick = () => {
   const npub = $("npub").value.trim();
