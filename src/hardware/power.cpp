@@ -70,13 +70,15 @@ Charge chargeState() {
 
 bool charging() { return chargeState() == Charge::Charging; }
 
-// Lo que lee el badge con carga frente al tiempo que le queda. Medido en el #980
-// con la EEMB LP603449 de 1100 mAh (2026-10-22): 4 h 58 min en el perfil, sin
-// ahorro, ~220 mA. La lectura con carga va más baja que la celda en reposo:
-// llena da ~3,94 V y se apaga hacia 3,0 V (cae en picado desde 3,25 V).
+// Lo que lee el badge con carga frente al tiempo que le queda, con la EEMB
+// LP603449 de 1100 mAh del #980. Primera medida (2026-10-22, sin ahorro, ~220 mA):
+// 4 h 58 min. Segunda (2026-10-23, con la luz que se apaga y CPU a 80 MHz,
+// ~117 mA): 9 h 23 min, de 4,09 V a 3,15 V (el corte). Esta tabla es la de la
+// segunda, que es el uso de verdad; con más consumo la tensión va más baja y el
+// porcentaje sale algo por debajo (mejor eso que al revés).
 // El porcentaje es el tiempo que le queda, no la tensión.
 static uint8_t percentFor(float mv) {
-  static const uint16_t MV[]  = {3050, 3250, 3335, 3420, 3462, 3497, 3541, 3596, 3675, 3772, 3882, 3940};
+  static const uint16_t MV[]  = {3150, 3346, 3400, 3472, 3513, 3556, 3587, 3652, 3728, 3825, 3934, 4060};
   static const uint8_t  PCT[] = {   0,    5,   10,   20,   30,   40,   50,   60,   70,   80,   90,  100};
   if (mv <= MV[0]) return 0;
   for (int i = 1; i < 12; i++) {

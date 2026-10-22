@@ -55,11 +55,29 @@ static void sleepNow() {
     rtc_gpio_pulldown_dis(pin);
   }
   esp_sleep_enable_ext1_wakeup(buttons, ESP_EXT1_WAKEUP_ANY_LOW);
+  // Y cada minuto, un instante, para ver si lo han enchufado. Enchufar no lo
+  // despierta solo: el pin del USB, sin USB, ve la batería por detrás y la
+  // tensión cae donde el chip no sabe si es alto o bajo.
+  esp_sleep_enable_timer_wakeup(60ULL * 1000000ULL);
   Serial.flush();
   esp_deep_sleep_start();
 }
 
+// Despertado por el temporizador: ¿lo han enchufado? Si no, a dormir otra vez
+// sin encender nada (los pines siguen sujetos, así que todo sigue apagado).
+static void recheckAfterTimer() {
+  if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) return;
+  analogReadResolution(12);
+  const bool usb = analogReadMilliVolts(PIN_USB_SENSE) * 2 > 4450;
+  if (usb) return;                                   // enchufado: arranca normal y carga
+  esp_sleep_enable_ext1_wakeup((1ULL << PIN_BTN_PEER) | (1ULL << PIN_BTN_MODE) | (1ULL << PIN_BTN_SEED),
+                               ESP_EXT1_WAKEUP_ANY_LOW);
+  esp_sleep_enable_timer_wakeup(60ULL * 1000000ULL);
+  esp_deep_sleep_start();
+}
+
 void begin() {
+  recheckAfterTimer();   // si solo era la vuelta de cada minuto y no hay USB, no pasa de aquí
   // Al despertar de este sueño, los pines siguen sujetos: hay que soltarlos
   // antes de que power:: y leds:: los usen, o no les harían caso
   gpio_hold_dis((gpio_num_t)PIN_LED_POWER_OFF);
