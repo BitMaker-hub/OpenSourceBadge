@@ -7,7 +7,15 @@
 
 namespace radio {
 
-static const uint32_t RETRY_MS = 20000;   // si no conecta, se vuelve a intentar cada 20 s
+// Si la WiFi no está al alcance (otro sitio, router apagado), no se puede estar
+// buscándola todo el día: un intento dura como mucho 9 s (conecta en ~3 s) y,
+// si no sale, se espera 20 s, luego 40, 80, 160 y como mucho 5 min.
+static const uint32_t TRY_MS       = 9000;
+static const uint32_t BACKOFF_MS   = 20000;
+static const uint32_t MAX_WAIT_MS  = 300000;
+static uint32_t tryStartedAt = 0;          // 0 = no hay intento en marcha
+static uint32_t nextTryAt = 0;
+static uint8_t  fails = 0;
 
 // AHORRO (con batería y la pantalla apagada en las páginas de inicio): la radio
 // solo se enciende a ratos. Medido en el #980: con la radio siempre encendida
@@ -52,6 +60,7 @@ static void waitUsers() {
 }
 
 static void turnOff() {
+  tryStartedAt = 0;                 // el intento en marcha se corta (no cuenta como fallo)
   waitUsers();
   vTaskDelay(pdMS_TO_TICKS(300));   // y que el peer cercano (en el bucle principal) suelte ESP-NOW
   WiFi.disconnect(true);
@@ -70,7 +79,6 @@ static void syncTime() {
 }
 
 static void task(void*) {
-  uint32_t lastTry = 0;
   uint32_t cycleStart = 0;
   for (;;) {
     // EXCLUSIVO: soltar la WiFi y apagar
@@ -87,7 +95,6 @@ static void task(void*) {
       const uint32_t now = millis();
       if (cycleStart == 0 || now - cycleStart >= ECO_PERIOD_MS) {     // empieza otro ciclo
         cycleStart = now;
-        lastTry = 0;
       }
       if (now - cycleStart >= ECO_ON_MS) {                             // fase dormida
         if (!isOff) {
@@ -113,14 +120,15 @@ static void task(void*) {
       WiFi.mode(WIFI_STA);
       WiFi.setSleep(false);       // sin ahorro del módem: si no, se pierden mensajes de ESP-NOW
       isOff = false;
-      lastTry = 0;
       windowAt = millis();
       if (wantEco && ssid.isEmpty()) esp_wifi_set_channel(ECO_CHANNEL, WIFI_SECOND_CHAN_NONE);
     }
     if (reloadPending) {
       WiFi.disconnect();
-      lastTry = 0;
       lastChannel = 0;            // otra WiFi: nada de atajos
+      tryStartedAt = 0;
+      fails = 0;
+      nextTryAt = 0;
       reloadPending = false;
     }
 
@@ -133,18 +141,28 @@ static void task(void*) {
         memcpy(lastBssid, WiFi.BSSID(), 6);
         Serial.printf("[radio] WiFi conectada en %lu ms (canal %ld)\n", (unsigned long)(onlineAt - windowAt), (long)lastChannel);
       }
+      tryStartedAt = 0;
+      fails = 0;
+      nextTryAt = 0;
       state = Status::Online;
       syncTime();
     } else {
-      if (lastTry == 0 || millis() - lastTry > RETRY_MS) {
+      const uint32_t now = millis();
+      if (tryStartedAt && now - tryStartedAt > TRY_MS) {            // este intento no ha salido
+        WiFi.disconnect();
+        tryStartedAt = 0;
+        lastChannel = 0;                                            // ¿cambió el router? la próxima, buscando
+        fails = min(fails + 1, 5);
+        nextTryAt = now + min(BACKOFF_MS << (fails - 1), MAX_WAIT_MS);
+        Serial.printf("[radio] la WiFi no conecta; siguiente intento en %lu s\n", (unsigned long)((nextTryAt - now) / 1000));
+      }
+      if (!tryStartedAt && (int32_t)(now - nextTryAt) >= 0) {
         // Con el canal y el router de la última vez no hace falta buscar redes
         if (lastChannel) WiFi.begin(ssid.c_str(), password.c_str(), lastChannel, lastBssid);
         else             WiFi.begin(ssid.c_str(), password.c_str());
-        if (lastTry == 0) windowAt = millis();
-        lastTry = millis();
+        tryStartedAt = windowAt = now;
       }
-      if (lastChannel && millis() - lastTry > 6000) lastChannel = 0;   // ¿cambió el router? la próxima, buscando
-      state = Status::Connecting;
+      state = tryStartedAt ? Status::Connecting : Status::NoNetwork;   // esperando: como si no hubiera WiFi
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }

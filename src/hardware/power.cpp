@@ -35,8 +35,11 @@ void begin() {
 uint16_t usbMillivolts()     { return analogReadMilliVolts(PIN_USB_SENSE) * 2; }
 // Sin USB, a este pin le llega la batería por detrás (hasta 4,2 V con la batería
 // llena: con el corte en 4 V, sin cable decía que había USB). Con USB lee
-// 4,55-4,7 V. Y si hay un ordenador al otro lado, el propio USB del chip lo sabe.
-bool     usbConnected()      { return usbMillivolts() > 4450 || HWCDC::isConnected(); }
+// 4,55-4,7 V, pero cargando una batería vacía la línea baja hasta ~4,34 V (con
+// el corte en 4,45 V se creía con batería: CPU a 80 MHz y bucle del watchdog).
+// Y si hay un ordenador al otro lado, el propio USB del chip lo sabe.
+static const uint16_t USB_MIN_MV = 4300;
+bool     usbConnected()      { return usbMillivolts() > USB_MIN_MV || HWCDC::isConnected(); }
 uint16_t batteryMillivolts() { return analogReadMilliVolts(PIN_BATTERY_SENSE) * 2; }
 Charge chargeState() {
   static bool     seenBattery = false;   // ¿ha funcionado con batería, o la ha visto cargando, desde que arrancó?

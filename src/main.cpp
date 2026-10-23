@@ -271,7 +271,9 @@ void loop() {
                 (st == State::Profile || st == State::QrCodes || st == State::QrFullscreen ||
                  st == State::Peers || st == State::Stats));
   lowbattery::loop(usb);
-  const uint32_t mhz = usb || miner::running() ? 240 : 80;
+  // Mientras la WiFi conecta, a 240: la clave WPA2 se calcula en el núcleo 0 y a
+  // 80 MHz lo dejaba sin respiro más de 5 s (salta el watchdog y se reinicia).
+  const uint32_t mhz = usb || miner::running() || radio::status() == radio::Status::Connecting ? 240 : 80;
   if (getCpuFrequencyMhz() != mhz) setCpuFrequencyMhz(mhz);
   batterylog::loop(app::stateName(app::current()));
   leds::show();

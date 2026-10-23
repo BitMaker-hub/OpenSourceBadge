@@ -68,7 +68,7 @@ static void sleepNow() {
 static void recheckAfterTimer() {
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TIMER) return;
   analogReadResolution(12);
-  const bool usb = analogReadMilliVolts(PIN_USB_SENSE) * 2 > 4450;
+  const bool usb = analogReadMilliVolts(PIN_USB_SENSE) * 2 > 4300;   // el mismo corte que power::usbConnected
   if (usb) return;                                   // enchufado: arranca normal y carga
   esp_sleep_enable_ext1_wakeup((1ULL << PIN_BTN_PEER) | (1ULL << PIN_BTN_MODE) | (1ULL << PIN_BTN_SEED),
                                ESP_EXT1_WAKEUP_ANY_LOW);

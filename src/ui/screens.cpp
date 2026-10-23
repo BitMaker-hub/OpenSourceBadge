@@ -48,6 +48,7 @@ void header(const String& title, uint16_t color) {
       case radio::Status::Online:     wifi = 1; break;
       case radio::Status::Connecting: wifi = 2; break;
       case radio::Status::Sleeping:   wifi = 3; break;
+      case radio::Status::NoNetwork:  wifi = 3; break;   // configurada pero no está: esperando para reintentar
       default:                        break;
     }
   }
