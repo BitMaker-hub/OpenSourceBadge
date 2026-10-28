@@ -317,9 +317,18 @@ static const char* const BOLT[] = {
   "......####..", ".....####...", "....####....", "...####.....", "..###.......", ".##........."};
 
 void zap(const Zap& z, uint32_t t) {
-  if (t < 1200 && (t / 120) % 2) display::clear(rgb(0x1A1606));   // destello al llegar
-  display::bitmap(BOLT, 12, CX - 36, 30, 6, ink::Gold);
-  display::text("ZAP!", CX, 110, Font::LabelBig, ink::Gold, Align::Center);
+  // Un zap de Nostr va en el morado de Nostr y con su avestruz (el NOSTRICH) al
+  // lado del rayo, como un sello; un pago Lightning, en dorado y el rayo solo
+  const bool nostr = z.via == "Nostr";
+  const uint16_t accent = nostr ? ink::Nostr : ink::Gold;
+  if (t < 1200 && (t / 120) % 2) display::clear(rgb(nostr ? 0x16102A : 0x1A1606));   // destello al llegar
+  if (nostr) {
+    display::bitmap(BOLT, 12, CX - 61, 30, 6, accent);          // rayo (72 px) + hueco + avestruz (40 px), centrados
+    avatars::card(Role::Nostrich, CX + 25, 50, 1);
+  } else {
+    display::bitmap(BOLT, 12, CX - 36, 30, 6, accent);
+  }
+  display::text("ZAP!", CX, 110, Font::LabelBig, accent, Align::Center);
   display::text("+" + thousands(z.amount) + " sats", CX, 132, Font::Title, ink::Fg, Align::Center);
   display::text("From " + z.from, CX, 170, Font::Body, ink::Soft, Align::Center);
   display::text("Via " + z.via, CX, 188, Font::Body, z.via == "Nostr" ? ink::Nostr : ink::Gold, Align::Center);

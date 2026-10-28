@@ -415,8 +415,10 @@ static void checkZaps() {
 static void zap(ButtonEvent ev, uint32_t t) {
   if (ev != ButtonEvent::None || t > 6000) return go(returnTo);
 
-  effects::trail(groups::BTopToBottom, colors::Gold, 6, 45, t, colors::Cream);   // estela: como mucho 6 encendidos
-  effects::solid(groups::Rx, colors::Gold);
+  // Estela por la B (como mucho 6 encendidos): morada si es un zap de Nostr, dorada si es un pago Lightning
+  const bool nostr = zapShown.via == "Nostr";
+  effects::trail(groups::BTopToBottom, nostr ? colors::Purple : colors::Gold, 6, 45, t, nostr ? 0xD8CCFF : colors::Cream);
+  effects::solid(groups::Rx, nostr ? colors::Purple : colors::Gold);
   screens::zap(zapShown, t);
 }
 
