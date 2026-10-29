@@ -7,11 +7,14 @@
 
 namespace nostrzaps {
 
-// Dos relays grandes: si uno falla, el otro sigue. Los recibos suelen estar en los dos.
+// Tres relays grandes: si uno falla, siguen los otros. Los recibos no siempre llegan a todos.
 struct Relay { const char* host; const char* path; };
 static const Relay RELAYS[] = {
   {"relay.damus.io", "/"},
   {"relay.primal.net", "/"},
+  // nos.lol: en la prueba del 29-10 el zap pidió 14 relays y el recibo de Wallet of Satoshi solo quedó
+  // guardado en este. Con damus y primal solos, el badge lo cogió al vuelo por los pelos.
+  {"nos.lol", "/"},
 };
 static const int RELAY_COUNT = sizeof(RELAYS) / sizeof(RELAYS[0]);
 
