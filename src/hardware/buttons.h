@@ -25,7 +25,8 @@ namespace buttons {
 
 void begin();
 
-// Llamar una vez por vuelta del loop. Devuelve un evento o ButtonEvent::None.
+// Llamar en cada vuelta del loop: da el siguiente evento de la cola, o ButtonEvent::None.
+// (Los botones los lee una tarea aparte cada 5 ms: aunque el loop tarde, no se pierden.)
 ButtonEvent poll();
 
 // Estado instantáneo (para la pantalla de prueba de placa)
