@@ -20,7 +20,7 @@ struct PaymentMessage {
 };
 
 static Preferences prefs;
-static String serverUrl, inkey, lnAddress, access;   // se escriben al arrancar o en configure()
+static String serverUrl, inkey, lnAddress, access, adminKey;   // se escriben al arrancar o en configure()
 static String host, basePath;
 static uint16_t port = 443;
 static bool   tls = true;
@@ -67,14 +67,16 @@ static void load() {
   inkey     = get("w_key");
   lnAddress = get("w_addr");
   access    = get("w_access");
+  adminKey  = get("w_admin");
   parseUrl();
 }
 
-void configure(const String& url, const String& key, const String& addr, const String& acc) {
+void configure(const String& url, const String& key, const String& addr, const String& acc, const String& admin) {
   prefs.putString("w_url", url);
   prefs.putString("w_key", key);
   prefs.putString("w_addr", addr);
   prefs.putString("w_access", acc);
+  prefs.putString("w_admin", admin);
   load();
   balance = -1;
   restart = true;
@@ -83,6 +85,7 @@ void configure(const String& url, const String& key, const String& addr, const S
 bool configured()       { return serverUrl.length() && inkey.length(); }
 String address()        { return lnAddress; }
 String accessUrl()      { return access; }
+bool canWithdraw()      { return configured() && (adminKey.length() || access.length()); }
 int32_t balanceSats()   { return balance; }
 Status status()         { return state; }
 
@@ -216,8 +219,79 @@ static void stopSocket() {
   radio::busy(radio::User::Lnbits, false);
 }
 
+// ============================================================ retirada por el saldo
+
+static volatile bool     wantWithdraw = false;
+static volatile Withdraw wState = Withdraw::Idle;
+static String            wLnurl, wLinkId;   // los escribe la tarea; la pantalla los lee cuando está Ready
+static volatile int32_t  wSats = 0;
+
+void     requestWithdraw() { wState = Withdraw::Preparing; wantWithdraw = true; }
+Withdraw withdrawState()   { return wState; }
+String   withdrawLnurl()   { return wState == Withdraw::Ready ? wLnurl : String(""); }
+int32_t  withdrawSats()    { return wSats; }
+
+// Una llamada a la API con la clave de admin del monedero (POST si hay cuerpo, DELETE si del)
+static int adminCall(const char* method, const String& path, const String& body, String& out) {
+  HTTPClient http;
+  WiFiClientSecure secure;
+  WiFiClient plain;
+  const String url = String(tls ? "https://" : "http://") + host + ":" + port + basePath + path;
+  if (tls) { secure.setInsecure(); http.begin(secure, url); }
+  else     { http.begin(plain, url); }
+  http.addHeader("X-Api-Key", adminKey);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(8000);
+  const int code = http.sendRequest(method, body);
+  out = code > 0 ? http.getString() : "";
+  http.end();
+  return code;
+}
+
+static void createWithdraw() {
+  fetchBalance();
+  if (balance < 0) { wState = Withdraw::Failed; return; }
+  // LNbits guarda una reserva para la comisión al pagar fuera: 1 % con un mínimo de 2 sats
+  const int32_t reserve = max((int32_t)2, (int32_t)((balance + 99) / 100));
+  const int32_t amount = balance - reserve;
+  String out;
+  if (wLinkId.length()) {                                   // el enlace de antes ya no vale: fuera
+    adminCall("DELETE", "/withdraw/api/v1/links/" + wLinkId, "", out);
+    wLinkId = "";
+  }
+  if (amount < 1) { wSats = 0; wState = Withdraw::Empty; return; }
+  JsonDocument req;
+  req["title"] = "Badge withdraw";
+  req["min_withdrawable"] = 1;
+  req["max_withdrawable"] = amount;
+  req["uses"] = 1;
+  req["wait_time"] = 1;
+  req["is_unique"] = false;
+  String body;
+  serializeJson(req, body);
+  const int code = adminCall("POST", "/withdraw/api/v1/links", body, out);
+  JsonDocument doc;
+  if (code != 200 && code != 201) { Serial.printf("[lnbits] retirada: LNbits dice %d\n", code); wState = Withdraw::Failed; return; }
+  if (deserializeJson(doc, out) || !doc["lnurl"].is<const char*>()) { wState = Withdraw::Failed; return; }
+  wLinkId = doc["id"] | "";
+  wLnurl = String("lightning:") + (doc["lnurl"] | "");
+  wSats = amount;
+  wState = Withdraw::Ready;
+  Serial.printf("[lnbits] enlace de retirada por %ld sats (saldo %ld)\n", (long)amount, (long)balance);
+}
+
 static void task(void*) {
   for (;;) {
+    if (wantWithdraw && configured()) {
+      if (!adminKey.length()) {                             // sin admin: el enlace fijo de antes
+        wLnurl = access; wSats = balance; wState = access.length() ? Withdraw::Ready : Withdraw::Failed;
+        wantWithdraw = false;
+      } else if (radio::online()) {
+        wantWithdraw = false;
+        radio::busy(radio::User::Lnbits, true);
+        createWithdraw();
+      }
+    }
     if (restart) { stopSocket(); restart = false; }
     if (!configured()) { stopSocket(); state = Status::NotConfigured; vTaskDelay(pdMS_TO_TICKS(500)); continue; }
     if (!radio::online()) { stopSocket(); state = Status::NoInternet; vTaskDelay(pdMS_TO_TICKS(200)); continue; }

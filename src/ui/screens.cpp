@@ -404,22 +404,31 @@ void handshakeMined(const Peer& other) {
 
 // ============================================================ WITHDRAW
 
-void withdraw(const String& accessUrl, int32_t balanceSats, bool showQr) {
+void withdraw(lnbits::Withdraw state, const String& lnurl, int32_t amountSats, int32_t balanceSats, bool showQr) {
   header("WITHDRAW", ink::Gold);
   display::text(balanceSats >= 0 ? thousands(balanceSats) + " sats" : String("-- sats"), CX, 24, Font::Title, ink::Gold, Align::Center);
-  if (!showQr) {
-    display::roundRect(6, 64, 158, 120, rgb(0x2A1416));
-    centeredLines("This QR opens your badge wallet.", 70, 146, 2, 16, ink::Red);
-    centeredLines("Anyone who scans it can spend your sats. Scan it only with your own phone.",
-                  106, 146, 5, 16, rgb(0xE6A5A5));
-    display::roundRect(18, 204, 134, 24, ink::Gold);
-    display::text("PEER  show QR", CX, 208, Font::Body, ink::Bg, Align::Center);
-    display::text("MODE  back", CX, 240, Font::Body, ink::Dim, Align::Center);
+  // Mientras se prepara el enlace, o si no hay nada que retirar
+  if (state != lnbits::Withdraw::Ready) {
+    const char* msg = state == lnbits::Withdraw::Empty  ? "Nothing to withdraw yet. Get zapped first!" :
+                      state == lnbits::Withdraw::Failed ? "Could not reach your wallet. Check the WiFi and try again." :
+                                                          "Preparing your withdraw link...";
+    centeredLines(msg, 110, 150, 4, 16, state == lnbits::Withdraw::Failed ? ink::Red : ink::Soft);
+    display::text(state == lnbits::Withdraw::Failed ? "PEER retry - SEED back" : "SEED back", CX, 296, Font::Body, ink::Dim, Align::Center);
     return;
   }
-  display::qr(accessUrl, CX, 60, 166);
-  centeredLines("Open it on your phone and send the sats to your own wallet.", 236, 154, 3, 16, ink::Soft);
-  display::text("PEER hide - MODE back", CX, 296, Font::Body, ink::Dim, Align::Center);
+  if (!showQr) {
+    display::roundRect(6, 64, 158, 120, rgb(0x2A1416));
+    centeredLines("This QR sends your sats to whoever scans it.", 70, 146, 3, 16, ink::Red);
+    centeredLines("Scan it only with your own phone.", 124, 146, 3, 16, rgb(0xE6A5A5));
+    display::roundRect(18, 204, 134, 24, ink::Gold);
+    display::text("PEER  show QR", CX, 208, Font::Body, ink::Bg, Align::Center);
+    display::text("SEED  back", CX, 240, Font::Body, ink::Dim, Align::Center);
+    return;
+  }
+  display::qr(lnurl, CX, 60, 166);
+  display::text("Withdraw " + thousands(amountSats) + " sats", CX, 234, Font::Body, ink::Gold, Align::Center);
+  centeredLines("Scan it with your own wallet to receive them.", 254, 154, 2, 16, ink::Soft);
+  display::text("PEER hide - SEED back", CX, 296, Font::Body, ink::Dim, Align::Center);
 }
 
 // ============================================================ PEER CERCANO

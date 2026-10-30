@@ -33,8 +33,20 @@
 #include "net/lnbits.h"
 #include "net/miner.h"
 #include "app/battery_log.h"
+#include <mbedtls/platform.h>
+#include <esp_heap_caps.h>
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
+
+// Las conexiones TLS (Nostr x3, LNbits, mempool...) a la PSRAM. Este framework las
+// reserva en la RAM interna, ~35-40 KB cada una: con los 3 relays + el websocket de
+// LNbits + una llamada más, "SSL - Memory allocation failed" (2026-10-30). La
+// PSRAM tiene 8 MB casi libres; si un día no hubiera, a la interna como antes.
+static void* tlsCalloc(size_t n, size_t size) {
+  void* p = heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return p ? p : heap_caps_calloc(n, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+static void tlsFree(void* p) { heap_caps_free(p); }
 
 // Para probar desde el ordenador con el monitor serie:
 //   p / m / s  = PEER / MODE / SEED corto
@@ -130,16 +142,16 @@ static ButtonEvent readSerialCommand() {
       return ButtonEvent::None;
     }
     case 'L': {
-      // url|inkey|dirección|enlace de acceso, separados por |
-      String parts[4];
+      // url|inkey|dirección|enlace fijo|clave de admin del monedero, separados por |
+      String parts[5];
       String line = Serial.readStringUntil('\n');
       line.trim();
-      for (int i = 0, from = 0; i < 4; i++) {
+      for (int i = 0, from = 0; i < 5; i++) {
         const int bar = line.indexOf('|', from);
         parts[i] = bar < 0 ? line.substring(from) : line.substring(from, bar);
         from = bar < 0 ? line.length() : bar + 1;
       }
-      lnbits::configure(parts[0], parts[1], parts[2], parts[3]);
+      lnbits::configure(parts[0], parts[1], parts[2], parts[3], parts[4]);
       badge::setWalletAddress(parts[2]);
       Serial.printf("Monedero: %s en %s\n", parts[2].c_str(), parts[0].c_str());
       return ButtonEvent::None;
@@ -182,6 +194,9 @@ static ButtonEvent readSerialCommand() {
                     power::chargeState() == power::Charge::Full ? " (llena)" :
                     power::chargeState() == power::Charge::NoBattery ? " (interruptor en OFF o sin batería: NO carga)" : "");
       Serial.printf("  Encendido hace %lu min; último reinicio: %s\n", millis() / 60000, resetReason());
+      Serial.printf("  Memoria libre: interna %u KB (mínimo %u KB), PSRAM %u KB\n",
+                    heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024, heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / 1024,
+                    heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024);
       return ButtonEvent::None;
     }
     case 'K':   // los contactos guardados, con todo lo que pasaron en el handshake
@@ -226,6 +241,7 @@ static ButtonEvent readSerialCommand() {
 void setup() {
   Serial.setRxBufferSize(8192);   // para el comando J: un recibo de zap ocupa varios KB
   Serial.begin(115200);
+  mbedtls_platform_set_calloc_free(tlsCalloc, tlsFree);   // antes de cualquier conexión TLS
   lowbattery::begin();   // antes que nada: si venimos de dormir por batería baja, soltar los pines
   power::begin();     // lo primero: sin GPIO15 alto, con batería no hay pantalla
   buttons::begin();

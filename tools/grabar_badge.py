@@ -12,12 +12,13 @@ Lee la configuración de tools/.env (NO se sube al repo; ver tools/.env.ejemplo)
     WIFI_SSID=BitcoinAmsterdam  (opcional: la WiFi del evento)
     WIFI_PASS=...               (opcional)
 
-Para cada badge:
-  1. crea un monedero "Badge #042" en la cuenta,
-  2. le crea su dirección Lightning badge042@dominio (extensión LNURLp) con zaps de Nostr,
-  3. le crea un enlace de retirada (extensión Withdraw) que solo puede sacar de ese monedero,
+Para cada badge (si ya existe, se reutiliza: se puede volver a grabar sin duplicar nada):
+  1. su monedero "Badge #042" en la cuenta,
+  2. su dirección Lightning badge042@dominio (extensión LNURLp) con zaps de Nostr,
+  3. borra los enlaces de retirada que tuviera (el badge crea el suyo por el saldo al retirar),
   4. graba en el badge por el puerto serie: número (n042), monedero (L...) y WiFi (W...).
-El badge solo se queda con la clave de lectura (inkey): ve los pagos, no puede gastar.
+El badge se queda con la clave de lectura (ver pagos) y con la de ADMIN de SU monedero, para crear
+la retirada por el saldo (decisión de Roger, 2026-10-30). Nunca con el token de la cuenta.
 
 Adaptado a LNbits 1.6.2 (truthfulrat9.lnbits.com, 2026-10-30), mirando su /openapi.json: crear un monedero
 pide el token de la cuenta (Bearer); las direcciones y las retiradas, la clave de admin del monedero nuevo.
@@ -56,18 +57,39 @@ def api(base, path, key=None, body=None, token=None):
         raise SystemExit("LNbits dice %d en %s: %s" % (e.code, path, e.read().decode(errors="replace")[:300]))
 
 
+def delete(base, path, key):
+    req = urllib.request.Request(base + path, method="DELETE", headers={"X-Api-Key": key})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        r.read()
+
+
 def make_wallet(env, number):
     base, token = env["LNBITS_URL"].rstrip("/"), env["LNBITS_TOKEN"]
     domain = env.get("LNBITS_DOMINIO") or urllib.parse.urlparse(base).hostname
     name = "Badge #%03d" % number
-    wallet = api(base, "/api/v1/wallet", body={"name": name}, token=token)
     user = "badge%03d" % number
-    api(base, "/lnurlp/api/v1/links", wallet["adminkey"], {
-        "wallet": wallet["id"], "description": name, "min": 1, "max": 1_000_000, "comment_chars": 140,
-        "username": user, "zaps": True})
-    withdraw = api(base, "/withdraw/api/v1/links", wallet["adminkey"], {
-        "title": name, "min_withdrawable": 1, "max_withdrawable": 1_000_000, "uses": 50, "wait_time": 1,
-        "is_unique": False})
+    # 1. El monedero: si ya hay uno con este nombre, ese
+    existing = [w for w in api(base, "/api/v1/wallets", token=token) if w.get("name") == name and not w.get("deleted")]
+    if existing:
+        wallet = existing[0]
+        print("Monedero %s: ya existía, se reutiliza" % name)
+    else:
+        wallet = api(base, "/api/v1/wallet", body={"name": name}, token=token)
+        print("Monedero %s: creado" % name)
+    key = wallet["adminkey"]
+    # 2. La dirección Lightning (con zaps), si aún no la tiene
+    links = api(base, "/lnurlp/api/v1/links", key)
+    if not any(l.get("username") == user for l in links):
+        api(base, "/lnurlp/api/v1/links", key, {
+            "wallet": wallet["id"], "description": name, "min": 1, "max": 1_000_000, "comment_chars": 140,
+            "username": user, "zaps": True})
+    # 3. Fuera los enlaces de retirada que hubiera (los fijos de antes enseñaban un máximo de 1.000.000 sats)
+    old = api(base, "/withdraw/api/v1/links", key)
+    old = old.get("data", old) if isinstance(old, dict) else old
+    for link in old:
+        delete(base, "/withdraw/api/v1/links/%s" % link["id"], key)
+    if old:
+        print("Enlaces de retirada viejos borrados:", len(old))
     address = "%s@%s" % (user, domain)
     # Comprobar que la dirección responde y admite zaps antes de grabarla en el badge
     try:
@@ -77,7 +99,7 @@ def make_wallet(env, number):
                                              "sí" if info.get("allowsNostr") else "NO"))
     except Exception as e:
         print("OJO: la dirección %s no responde todavía (%s)" % (address, e))
-    return {"url": base, "inkey": wallet["inkey"], "address": address, "withdraw": "lightning:" + withdraw["lnurl"]}
+    return {"url": base, "inkey": wallet["inkey"], "address": address, "admin": key}
 
 
 def send(port, lines):
@@ -99,8 +121,8 @@ def main():
     lines = ["n%d" % number]
     if "--sin-monedero" not in sys.argv:
         w = make_wallet(env, number)
-        print("Monedero creado:", w["address"])
-        lines.append("L%s|%s|%s|%s" % (w["url"], w["inkey"], w["address"], w["withdraw"]))
+        print("Monedero listo:", w["address"])
+        lines.append("L%s|%s|%s||%s" % (w["url"], w["inkey"], w["address"], w["admin"]))   # sin enlace fijo
     if env.get("WIFI_SSID"):
         lines.append("W%s|%s" % (env["WIFI_SSID"], env.get("WIFI_PASS", "")))
     send(port, lines)

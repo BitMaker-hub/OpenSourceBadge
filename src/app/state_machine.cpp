@@ -225,7 +225,7 @@ static void peers(ButtonEvent ev, uint32_t t) {
 
 static void stats(ButtonEvent ev, uint32_t t) {
   // Aquí PEER largo no es el QR grande: es sacar los sats (si el badge tiene monedero)
-  if (ev == ButtonEvent::PeerLong && lnbits::accessUrl().length()) return go(State::Withdraw);
+  if (ev == ButtonEvent::PeerLong && lnbits::canWithdraw()) return go(State::Withdraw);
   if (homeButtons(ev)) return;
   idleLeds(t);
   screens::stats();
@@ -430,12 +430,26 @@ static void zap(ButtonEvent ev, uint32_t t) {
 
 static bool withdrawShowQr = false;
 
-static void withdraw(ButtonEvent ev, uint32_t t) {
-  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::ModeLong || ev == ButtonEvent::SeedShort || t > 60000) return go(State::Stats);
-  if (ev == ButtonEvent::PeerShort) withdrawShowQr = !withdrawShowQr;
+static int32_t withdrawBalanceSeen = -1;   // el saldo cuando se creó el enlace
 
-  effects::breathe(groups::B, colors::Gold, 2400, t);
-  screens::withdraw(lnbits::accessUrl(), lnbits::balanceSats(), withdrawShowQr);
+static void withdraw(ButtonEvent ev, uint32_t t) {
+  if (ev == ButtonEvent::ModeShort || ev == ButtonEvent::ModeLong || ev == ButtonEvent::SeedShort || t > 120000) return go(State::Stats);
+  const lnbits::Withdraw ws = lnbits::withdrawState();
+  if (ev == ButtonEvent::PeerShort) {
+    if (ws == lnbits::Withdraw::Failed) lnbits::requestWithdraw();   // reintentar
+    else withdrawShowQr = !withdrawShowQr;
+  }
+  // Si el saldo cambia con el QR delante (se acaba de retirar, o ha entrado un pago),
+  // ese enlace ya no vale: otro por lo que haya ahora
+  if (ws == lnbits::Withdraw::Ready && withdrawBalanceSeen >= 0 && lnbits::balanceSats() != withdrawBalanceSeen) {
+    lnbits::requestWithdraw();
+    withdrawShowQr = false;
+  }
+  if (ws == lnbits::Withdraw::Ready && withdrawBalanceSeen < 0) withdrawBalanceSeen = lnbits::balanceSats();
+  if (ws == lnbits::Withdraw::Preparing) withdrawBalanceSeen = -1;
+
+  effects::breathe(groups::B, leds::dim(colors::Gold, 120), 2400, t);
+  screens::withdraw(ws, lnbits::withdrawLnurl(), lnbits::withdrawSats(), lnbits::balanceSats(), withdrawShowQr);
 }
 
 // ============================================================ LAB
@@ -638,7 +652,7 @@ static void onEnter(State s) {
     case State::Setup:   nearby::stop(); radio::exclusive(true); setupSavedAt = 0; portal::start(); break;
     case State::SeedLab: nearby::stop(); radio::exclusive(true); seedlab::start(); break;   // radio apagada
     case State::HardwareTest: startHardwareTest(); break;
-    case State::Withdraw:     withdrawShowQr = false; break;
+    case State::Withdraw:     withdrawShowQr = false; withdrawBalanceSeen = -1; lnbits::requestWithdraw(); break;
     case State::Miner: {                                           // que no salgan avisos de lo de antes
       const nerdminer::Stats st = miner::stats();
       seenJobs = st.templates;
