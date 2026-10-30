@@ -5,9 +5,10 @@
 
 Lee la configuración de tools/.env (NO se sube al repo; ver tools/.env.ejemplo):
 
-    LNBITS_URL=https://zaps.bitronics.store
-    LNBITS_ADMIN_KEY=...        clave de admin de un monedero "de fábrica" de la cuenta
-    LNBITS_DOMINIO=zaps.bitronics.store
+    LNBITS_URL=https://truthfulrat9.lnbits.com
+    LNBITS_TOKEN=...            token de API de la cuenta (perfil de LNbits). Solo para crear monederos;
+                                no va nunca al badge
+    LNBITS_DOMINIO=             (opcional) el dominio de las direcciones; por defecto, el de LNBITS_URL
     WIFI_SSID=BitcoinAmsterdam  (opcional: la WiFi del evento)
     WIFI_PASS=...               (opcional)
 
@@ -18,9 +19,11 @@ Para cada badge:
   4. graba en el badge por el puerto serie: número (n042), monedero (L...) y WiFi (W...).
 El badge solo se queda con la clave de lectura (inkey): ve los pagos, no puede gastar.
 
-OJO: hecho a partir de la documentación de la API de LNbits; falta probarlo contra la instancia de verdad.
+Adaptado a LNbits 1.6.2 (truthfulrat9.lnbits.com, 2026-10-30), mirando su /openapi.json: crear un monedero
+pide el token de la cuenta (Bearer); las direcciones y las retiradas, la clave de admin del monedero nuevo.
+Falta probarlo de punta a punta con un badge.
 """
-import json, os, sys, time, urllib.request
+import json, os, sys, time, urllib.parse, urllib.request, urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -38,26 +41,43 @@ def load_env():
     return env
 
 
-def api(base, path, key, body=None):
+def api(base, path, key=None, body=None, token=None):
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["X-Api-Key"] = key                         # clave de un monedero
+    if token:
+        headers["Authorization"] = "Bearer " + token      # token de la cuenta
     req = urllib.request.Request(base.rstrip("/") + path, method="POST" if body is not None else "GET",
-                                 data=json.dumps(body).encode() if body is not None else None,
-                                 headers={"X-Api-Key": key, "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return json.loads(r.read())
+                                 data=json.dumps(body).encode() if body is not None else None, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise SystemExit("LNbits dice %d en %s: %s" % (e.code, path, e.read().decode(errors="replace")[:300]))
 
 
 def make_wallet(env, number):
-    base, admin = env["LNBITS_URL"], env["LNBITS_ADMIN_KEY"]
+    base, token = env["LNBITS_URL"].rstrip("/"), env["LNBITS_TOKEN"]
+    domain = env.get("LNBITS_DOMINIO") or urllib.parse.urlparse(base).hostname
     name = "Badge #%03d" % number
-    wallet = api(base, "/api/v1/wallet", admin, {"name": name})
+    wallet = api(base, "/api/v1/wallet", body={"name": name}, token=token)
     user = "badge%03d" % number
     api(base, "/lnurlp/api/v1/links", wallet["adminkey"], {
-        "description": name, "min": 1, "max": 1_000_000, "comment_chars": 140, "username": user, "zaps": True})
+        "wallet": wallet["id"], "description": name, "min": 1, "max": 1_000_000, "comment_chars": 140,
+        "username": user, "zaps": True})
     withdraw = api(base, "/withdraw/api/v1/links", wallet["adminkey"], {
         "title": name, "min_withdrawable": 1, "max_withdrawable": 1_000_000, "uses": 50, "wait_time": 1,
         "is_unique": False})
-    return {"url": base, "inkey": wallet["inkey"], "address": "%s@%s" % (user, env["LNBITS_DOMINIO"]),
-            "withdraw": "lightning:" + withdraw["lnurl"]}
+    address = "%s@%s" % (user, domain)
+    # Comprobar que la dirección responde y admite zaps antes de grabarla en el badge
+    try:
+        with urllib.request.urlopen("https://%s/.well-known/lnurlp/%s" % (domain, user), timeout=20) as r:
+            info = json.loads(r.read())
+        print("Dirección %s: %s, zaps %s" % (address, "responde" if info.get("callback") else "RARA",
+                                             "sí" if info.get("allowsNostr") else "NO"))
+    except Exception as e:
+        print("OJO: la dirección %s no responde todavía (%s)" % (address, e))
+    return {"url": base, "inkey": wallet["inkey"], "address": address, "withdraw": "lightning:" + withdraw["lnurl"]}
 
 
 def send(port, lines):
