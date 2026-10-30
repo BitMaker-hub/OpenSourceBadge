@@ -32,6 +32,12 @@ static volatile bool   restart = false;
 static WebSocketsClient socket;
 static bool            socketStarted = false;
 
+// Con el ahorro de radio el websocket se corta mientras la radio duerme: un pago
+// que llegue entonces no avisa. Al reconectar se piden los últimos pagos y se
+// enseñan los que sean más nuevos que el último visto (hora del servidor).
+static uint32_t lastPaymentTime = 0;
+static bool     baselineSet = false;    // la primera vez tras encender, solo se apunta por dónde va
+
 // ============================================================ configuración
 
 static void copy(char* dst, const String& src, size_t size) {
@@ -99,15 +105,28 @@ static void fetchBalance() {
   http.end();
 }
 
-// Un pago: {"wallet_balance": sats, "payment": {"amount": msat, "memo", "bolt11", "extra": {...}}}
-static void onMessage(uint8_t* payload, size_t length) {
-  JsonDocument doc;
-  if (deserializeJson(doc, payload, length)) return;
-  if (doc["wallet_balance"].is<int>()) balance = doc["wallet_balance"].as<int>();
-  JsonObject p = doc["payment"];
-  if (p.isNull()) return;
+// La hora de un pago. LNbits 1.x la da como texto ISO ("2026-10-30T12:34:56.123+00:00"),
+// las versiones viejas como segundos Unix. Solo hace falta para ordenar y comparar.
+static uint32_t paymentTime(JsonVariant t) {
+  if (t.is<uint32_t>() || t.is<int64_t>()) return t.as<uint32_t>();
+  int y, mo, d, h, mi, s;
+  if (sscanf(t | "", "%d-%d-%dT%d:%d:%d", &y, &mo, &d, &h, &mi, &s) != 6) return 0;
+  // días desde 1970 (algoritmo de Howard Hinnant, calendario civil)
+  y -= mo <= 2;
+  const int era = (y >= 0 ? y : y - 399) / 400;
+  const unsigned yoe = y - era * 400;
+  const unsigned doy = (153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+  const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  const int32_t days = era * 146097 + (int32_t)doe - 719468;
+  return (uint32_t)days * 86400 + h * 3600 + mi * 60 + s;
+}
+
+// Un pago que entra, a la cola del loop principal (venga del websocket o de la lista)
+static void queuePayment(JsonObject p) {
   const int64_t msat = p["amount"] | 0;
   if (msat <= 0) return;                                  // solo pagos que entran
+  const uint32_t t = paymentTime(p["time"]);
+  if (t > lastPaymentTime) lastPaymentTime = t;
 
   PaymentMessage m = {};
   m.amount = msat / 1000;
@@ -132,6 +151,51 @@ static void onMessage(uint8_t* payload, size_t length) {
   if (!m.from[0]) copy(m.from, "someone", sizeof m.from);
   xQueueSend(payments, &m, 0);
   Serial.printf("[lnbits] pago de %lu sats (%s)\n", (unsigned long)m.amount, m.via);
+}
+
+// Un aviso del websocket: {"wallet_balance": sats, "payment": {"amount": msat, "memo", "bolt11", "extra": {...}}}
+static void onMessage(uint8_t* payload, size_t length) {
+  JsonDocument doc;
+  if (deserializeJson(doc, payload, length)) return;
+  if (doc["wallet_balance"].is<int>()) balance = doc["wallet_balance"].as<int>();
+  JsonObject p = doc["payment"];
+  if (!p.isNull()) queuePayment(p);
+}
+
+// Al (re)conectar: los últimos pagos cobrados, por si alguno llegó con la radio dormida
+static void fetchMissed() {
+  HTTPClient http;
+  WiFiClientSecure secure;
+  WiFiClient plain;
+  const String url = String(tls ? "https://" : "http://") + host + ":" + port + basePath +
+                     "/api/v1/payments?limit=10&sortby=time&direction=desc&status=success";
+  if (tls) { secure.setInsecure(); http.begin(secure, url); }
+  else     { http.begin(plain, url); }
+  http.addHeader("X-Api-Key", inkey);
+  http.setTimeout(5000);
+  if (http.GET() != 200) { http.end(); return; }
+  JsonDocument doc;
+  const bool bad = (bool)deserializeJson(doc, http.getString());
+  http.end();
+  if (bad || !doc.is<JsonArray>()) return;
+  JsonArray list = doc.as<JsonArray>();
+
+  if (!baselineSet) {                                     // recién encendido: lo de antes no se enseña
+    for (JsonObject p : list) lastPaymentTime = max(lastPaymentTime, paymentTime(p["time"]));
+    baselineSet = true;
+    return;
+  }
+  // Los nuevos, del más antiguo al más reciente (la lista viene al revés)
+  const uint32_t since = lastPaymentTime;
+  int found = 0;
+  for (int i = list.size() - 1; i >= 0; i--) {
+    JsonObject p = list[i];
+    if ((int64_t)(p["amount"] | 0) > 0 && paymentTime(p["time"]) > since) {
+      queuePayment(p);
+      found++;
+    }
+  }
+  if (found) Serial.printf("[lnbits] %d pago(s) que llegaron con la radio dormida\n", found);
 }
 
 static void onEvent(WStype_t type, uint8_t* payload, size_t length) {
@@ -161,6 +225,7 @@ static void task(void*) {
     if (!socketStarted) {
       radio::busy(radio::User::Lnbits, true);
       fetchBalance();
+      fetchMissed();
       const String path = basePath + "/api/v1/ws/" + inkey;
       if (tls) socket.beginSSL(host.c_str(), port, path.c_str());
       else     socket.begin(host.c_str(), port, path.c_str());

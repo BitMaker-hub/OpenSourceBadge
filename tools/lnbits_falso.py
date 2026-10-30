@@ -5,9 +5,12 @@
 Responde como LNbits en lo que usa el badge:
   - GET  /api/v1/wallet           (cabecera X-Api-Key)  -> {"balance": msat}
   - WS   /api/v1/ws/<inkey>                              -> avisos de pago
+  - GET  /api/v1/payments?limit=10                        -> los últimos pagos (lo pide al reconectar)
 Y, para lanzar pagos de prueba:
   - GET  /pagar?sats=2100&comentario=hola                -> pago normal (LNURLp con comentario)
   - GET  /zap?sats=500&mensaje=gm                        -> zap de Nostr (con la petición de zap en extra.nostr)
+  Con &silencio=1 el pago se apunta pero NO se avisa por el websocket: como si llegara con la radio dormida.
+La hora de los pagos va en texto ISO, como en LNbits 1.x.
 El formato de los avisos es el de lnbits/core/services/notifications.py:
   {"wallet_balance": sats, "payment": {...}}
 """
@@ -21,6 +24,7 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5055
 balance_msat = 21_000_000
 clients = set()
 counter = 0
+history = []          # los pagos, del más nuevo al más antiguo
 
 
 def http(status, body):
@@ -36,7 +40,7 @@ def payment(sats, extra):
     return {
         "wallet_balance": balance_msat // 1000,
         "payment": {"checking_id": str(counter), "pending": False, "status": "success", "amount": sats * 1000,
-                    "fee": 0, "memo": "Badge #308", "time": int(time.time()), "bolt11": bolt11,
+                    "fee": 0, "memo": "Badge #308", "time": time.strftime("%Y-%m-%dT%H:%M:%S.000000+00:00", time.gmtime()), "bolt11": bolt11,
                     "payment_hash": hashlib.sha256(bolt11.encode()).hexdigest(), "extra": extra},
     }
 
@@ -55,6 +59,9 @@ def process_request(connection, request):
     q = dict(urllib.parse.parse_qsl(url.query))
     if url.path.startswith("/api/v1/ws/"):
         return None                                   # websocket: lo atiende handler()
+    if url.path == "/api/v1/payments":
+        print("lista de pagos pedida", flush=True)
+        return http(HTTPStatus.OK, history[:int(q.get("limit", 10))])
     if url.path == "/api/v1/wallet":
         print("saldo pedido con la clave", request.headers.get("X-Api-Key"), flush=True)
         return http(HTTPStatus.OK, {"id": "w1", "name": "Badge #308", "balance": balance_msat})
@@ -62,7 +69,9 @@ def process_request(connection, request):
         sats = int(q.get("sats", 2100))
         msg = payment(sats, {"tag": "lnurlp", "link": "abc", "extra": str(sats * 1000),
                              "comment": q.get("comentario", "Gracias por la charla"), "lnaddress": "badge308@localhost"})
-        asyncio.get_event_loop().create_task(broadcast(msg))
+        history.insert(0, msg["payment"])
+        if q.get("silencio") != "1": asyncio.get_event_loop().create_task(broadcast(msg))
+        else: print("pago apuntado SIN aviso:", sats, "sats", flush=True)
         return http(HTTPStatus.OK, {"ok": True})
     if url.path == "/zap":
         sats = int(q.get("sats", 500))
@@ -71,7 +80,9 @@ def process_request(connection, request):
                        "created_at": int(time.time()), "id": "0" * 64, "sig": "0" * 128}
         msg = payment(sats, {"tag": "lnurlp", "link": "abc", "extra": str(sats * 1000), "nostr": json.dumps(zap_request),
                              "lnaddress": "badge308@localhost"})
-        asyncio.get_event_loop().create_task(broadcast(msg))
+        history.insert(0, msg["payment"])
+        if q.get("silencio") != "1": asyncio.get_event_loop().create_task(broadcast(msg))
+        else: print("pago apuntado SIN aviso:", sats, "sats", flush=True)
         return http(HTTPStatus.OK, {"ok": True})
     return http(HTTPStatus.NOT_FOUND, {"detail": "no"})
 

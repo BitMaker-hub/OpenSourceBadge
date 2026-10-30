@@ -408,6 +408,7 @@ static bool alreadyShown(const String& id) {
 // un handshake, esperan en la cola a que termines
 static void checkZaps() {
   if (!isHomePage(state) && state != State::Zap) return;
+  if (state == State::Zap && millis() - enteredAt < 3000) return;   // si llegan varios seguidos, cada uno se ve 3 s
   Zap z;
   if ((nostrzaps::nextZap(z) || lnbits::nextZap(z)) && !alreadyShown(z.id)) showZap(z);
 }
