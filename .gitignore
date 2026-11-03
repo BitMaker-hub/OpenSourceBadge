@@ -1,3 +1,5 @@
 .pio/
 .vscode/
 tools/.env
+__pycache__/
+release/

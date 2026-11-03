@@ -174,7 +174,7 @@ static ButtonEvent readSerialCommand() {
       String ssid, password;
       storage::loadNetwork(ssid, password);
       static const char* const NOSTR[] = {"sin configurar", "en pausa", "conectando WiFi", "conectando relay", "escuchando"};
-      Serial.printf("Badge #%03u %s\n", badge::number(), badge::me().name.c_str());
+      Serial.printf("Badge #%03u %s, firmware v%s (%s)\n", badge::number(), badge::me().name.c_str(), OSB_VERSION, OSB_COMMIT);
       Serial.printf("  npub:  %s\n", badge::me().npub.c_str());
       Serial.printf("  Telegram: %s, PGP: %s\n", badge::me().telegram.c_str(), badge::me().pgp.length() ? badge::me().pgp.c_str() : "(ninguna)");
       Serial.printf("  WiFi:  %s%s\n", ssid.length() ? ssid.c_str() : "(ninguna)", password.length() ? " (con contraseña)" : "");
@@ -256,7 +256,8 @@ void setup() {
   lowbattery::checkAtBoot();   // si la batería sigue vacía, a dormir otra vez (no vuelve)
   app::begin();
   batterylog::begin();   // después de app::begin, que monta LittleFS
-  Serial.println("Open Source Badge listo. Teclas: p m s (P M S largas), z zap, d demo, n042 numero, X borrar");
+  Serial.printf("Open Source Badge v%s (%s) listo. Teclas: p m s (P M S largas), z zap, d demo, n042 numero, X borrar\n",
+                OSB_VERSION, OSB_COMMIT);
   Serial.printf("Último reinicio: %s\n", resetReason());
 }
 
