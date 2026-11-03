@@ -11,9 +11,8 @@
 //    - address: la dirección Lightning del badge, la que sale en su QR
 //    - admin:   la clave de ADMIN de ESTE monedero (solo de este, nunca la de la
 //               cuenta). Con ella, al abrir la pantalla WITHDRAW, el badge crea un
-//               enlace de retirada de un solo uso POR EL SALDO que tiene. Decisión de
-//               Roger (2026-10-30): un enlace fijo enseñaba su máximo (1.000.000 sats)
-//               y confundía. Riesgo: quien saque la memoria del badge puede gastar los
+//               enlace de retirada de un solo uso POR EL SALDO que tiene. Un enlace
+//               fijo enseñaba su máximo (1.000.000 sats) y confundía. Riesgo: quien saque la memoria del badge puede gastar los
 //               sats de este monedero; casi lo mismo que quien vea el QR de retirada.
 //    - access:  (de antes) un enlace de retirada fijo. Solo se usa si no hay admin.
 //

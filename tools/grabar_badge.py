@@ -5,7 +5,7 @@
 
 Lee la configuración de tools/.env (NO se sube al repo; ver tools/.env.ejemplo):
 
-    LNBITS_URL=https://truthfulrat9.lnbits.com
+    LNBITS_URL=https://tu-instancia.lnbits.com
     LNBITS_TOKEN=...            token de API de la cuenta (perfil de LNbits). Solo para crear monederos;
                                 no va nunca al badge
     LNBITS_DOMINIO=             (opcional) el dominio de las direcciones; por defecto, el de LNBITS_URL
@@ -18,11 +18,10 @@ Para cada badge (si ya existe, se reutiliza: se puede volver a grabar sin duplic
   3. borra los enlaces de retirada que tuviera (el badge crea el suyo por el saldo al retirar),
   4. graba en el badge por el puerto serie: número (n042), monedero (L...) y WiFi (W...).
 El badge se queda con la clave de lectura (ver pagos) y con la de ADMIN de SU monedero, para crear
-la retirada por el saldo (decisión de Roger, 2026-10-30). Nunca con el token de la cuenta.
+la retirada por el saldo. Nunca con el token de la cuenta.
 
-Adaptado a LNbits 1.6.2 (truthfulrat9.lnbits.com, 2026-10-30), mirando su /openapi.json: crear un monedero
-pide el token de la cuenta (Bearer); las direcciones y las retiradas, la clave de admin del monedero nuevo.
-Falta probarlo de punta a punta con un badge.
+Hecho para LNbits 1.6.2 (mirando su /openapi.json): crear un monedero pide el token de la cuenta
+(Bearer); las direcciones y las retiradas, la clave de admin del monedero nuevo.
 """
 import json, os, sys, time, urllib.parse, urllib.request, urllib.error
 

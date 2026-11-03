@@ -1,157 +1,116 @@
 # Open Source Badge · Proof of Peer
 
-Firmware del badge de Bitcoin Amsterdam 2026: una placa HAT con una ₿ de 18 LEDs, dos LEDs TX/RX y tres
-botones (PEER, MODE, SEED) encima de un LilyGO T-Display-S3.
+![Open Source Badge, Bitcoin Amsterdam 2026](docs/open-source-badge.jpg)
 
-Diseñado por Bitmaker · [bitronics.store](https://bitronics.store)
+The badge of **Bitcoin Amsterdam 2026**: a HAT with an 18 LED ₿, two TX/RX LEDs and three buttons
+(PEER, MODE, SEED) on top of a LilyGO T-Display-S3 (ESP32-S3, 170x320 screen).
 
-## Compilar y grabar
+Designed by [Bitmaker](https://github.com/BitMaker-hub) · built by [Bitronics](https://bitronics.store)
 
+## What it does
+
+- **Proof of Peer.** Hold two badges together and press PEER on both: they swap contact cards (name, X,
+  Telegram, npub, Lightning address and PGP fingerprint) over ESP-NOW, without internet. Badges close to each
+  other see each other and send invites.
+- **Zaps.** With a WiFi and your npub, the badge listens to Nostr zap receipts (damus, primal, nos.lol) and
+  lights up the ₿ when you get one. Badges flashed for the event also carry their own LNbits wallet: its
+  Lightning address is in the QR and every payment shows up at once.
+- **NerdMiner.** Solo mining at ~140 kH/s with the hardware SHA-256 of the ESP32-S3, only while you look at
+  its screen. Out of the box it mines on `pool.bitronics.store:3334`; put your own address in `badge.local`
+  and the block is yours.
+- **Seed Lab.** Learn how a BIP39 seed is born from dice or coin tosses (no chip RNG). Radio off while it
+  runs. It is a learning tool: for real funds use an offline device such as the
+  [Seeder](https://github.com/BitMaker-hub/Seeder).
+- **badge.local.** Long press MODE: the badge opens the open WiFi `BADGE-xxx` and a setup page (profile,
+  WiFi, npub, miner) with the list of people you met, downloadable as vCard or CSV.
+
+## Buttons
+
+| Button | Short | Long |
+|---|---|---|
+| **MODE** | Next page: profile, QR, peers, stats | Setup: WiFi `BADGE-xxx` and `badge.local` |
+| **PEER** | Handshake with another badge | QR full screen (on STATS: withdraw) |
+| **SEED** | LAB: Seed Lab or NerdMiner (SEED is always back) | Board test |
+
+Holding SEED at power on also starts the board test: every LED in red, green and blue, the buttons, USB and
+battery voltage, LED current and whatever is on the Qwiic port.
+
+## Flash it
+
+**From the browser:** [flasher.bitronics.store](https://flasher.bitronics.store), device *Open Source
+Badge* (Chrome or Edge). Tick *Keep configuration* to update without losing your profile, wallet and peers.
+
+**With esptool**, from the [latest release](https://github.com/BitMaker-hub/OpenSourceBadge/releases/latest):
+
+```bash
+esptool.py --chip esp32s3 write_flash 0x0 opensourcebadge-factory.bin
 ```
+
+To update and keep the configuration, write only the application:
+
+```bash
+esptool.py --chip esp32s3 write_flash 0x10000 opensourcebadge-firmware.bin
+```
+
+| File | What it is |
+|---|---|
+| `opensourcebadge-factory.bin` | Bootloader, partitions and firmware in one image, at `0x0` |
+| `opensourcebadge-firmware.bin` | Firmware only, at `0x10000` (keeps settings) |
+| `opensourcebadge-firmware.elf` | Symbols, to read a crash dump |
+| `SHA256SUMS.txt` | Hashes of the files above |
+
+If the LEDs light up white at full power while flashing (old or broken firmware), hold BOOT while plugging
+in USB, then press RST.
+
+## Build from source
+
+[PlatformIO](https://platformio.org):
+
+```bash
 pio run -t upload
 pio device monitor
 ```
 
-## Cómo se usa
+The version lives only in `platformio.ini` (`custom_version`) and is printed at boot and by the serial
+command `i`, together with the commit.
 
-| Botón | Corto | Largo |
-|---|---|---|
-| **MODE** | Página siguiente: perfil → QR → peers → stats | Setup: WiFi abierta BADGE-xxx y badge.local |
-| **PEER** | Handshake con otro badge | QR a pantalla completa |
-| **SEED** | LAB: Seed Lab o NerdMiner | Prueba de placa |
+**Release:** bump `custom_version`, commit, then tag and push:
 
-- **Prueba de placa:** se entra manteniendo SEED pulsado al encender, o con SEED largo. Recorre los 20 LEDs en
-  rojo, verde y azul, enseña los botones pulsados, el voltaje del USB y de la batería, el consumo de los LEDs y lo
-  que haya en el Qwiic. PEER pausa y MODE avanza un paso.
-- **Desde el ordenador** (monitor serie): `p` `m` `s` son las pulsaciones cortas, `P` `M` `S` las largas y `z`
-  simula un zap.
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
 
-## Cómo está organizado
+The [build workflow](.github/workflows/build.yml) compiles it, checks that the tag matches
+`custom_version` and attaches the files to the release. The web flasher picks up new releases every day.
+
+## Code map
 
 ```
 src/
-  config.h               pines y límites de la placa (rev0.9-final)
-  main.cpp               el loop: botones -> estado -> LEDs y pantalla
-  app/state_machine      QUÉ hace el badge en cada momento. Empezar a leer por aquí
-  app/badge              los datos: perfil, peers, sats recibidos
-  hardware/              botones, LEDs, alimentación, Qwiic
-  effects/led_effects    efectos de LEDs que sirven para cualquier grupo (la B, TX, RX...)
-  ui/display             piezas comunes de las pantallas (cabecera, tarjeta, chip, QR)
-  ui/screens             una función por pantalla
-  ui/avatars             los personajes en pixel art
-tools/exportar_sprites.js  saca los personajes del prototipo de pantallas
+  main.cpp               the loop: buttons, state, LEDs and screen; serial commands
+  config.h               pins and limits of the board (rev0.9)
+  app/state_machine      what the badge does at each moment: start reading here
+  app/badge, storage     profile, peers, sats; NVS and LittleFS
+  app/seed_lab           BIP39 from dice or coin
+  hardware/              buttons, LEDs (own RMT driver), power and battery, backlight, Qwiic
+  effects/led_effects    LED effects for any group (the ₿, its outline, TX, RX)
+  net/radio              who owns the radio: normal (WiFi + nearby) or exclusive
+  net/peer_link, nearby  handshake and nearby badges over ESP-NOW
+  net/nostr_zaps, lnbits zaps and wallet
+  net/miner              wrapper of lib/nerdminer
+  net/setup_portal       badge.local
+  ui/                    display helpers, one function per screen, pixel art
+lib/                     nerdminer (MIT), uBitcoin (MIT), qrcoded (MIT)
+tools/                   screenshots over serial, logo and sprite export, event provisioning
 ```
 
-### La máquina de estados
+Each state has one function that, on every loop, reads the buttons and decides the next state (`go()`),
+lights its LEDs and draws its screen. Whatever a state does not light stays off.
 
-El badge siempre está en un estado. Cada estado tiene una función que, en cada vuelta del loop:
+The LEDs feed from the 3V3 regulator of the T-Display (600 mA, shared with the ESP32), so `leds::show()`
+caps them at 200 mA.
 
-1. mira los botones y el tiempo, y decide si cambia de estado (`go(...)`);
-2. enciende los LEDs que le tocan;
-3. dibuja su pantalla.
+## License
 
-Lo que un estado no enciende queda apagado, así que no hay que acordarse de apagar nada al salir.
-
-### Los LEDs
-
-Los efectos trabajan sobre **grupos**: `groups::B`, `groups::BOutline`, `groups::Tx`, `groups::Rx`...
-El mismo `effects::trail(...)` hace la estela de un zap por la B o un barrido por TX/RX.
-
-`leds::show()` aplica el brillo y **limita el consumo a 200 mA**. Los LEDs comen del regulador de 3V3 del
-T-Display (600 mA, compartido con el ESP32), así que ningún efecto puede pasarse. Si todos están apagados,
-corta la alimentación de los LEDs (Q1).
-
-## Contactos
-
-En el handshake cada badge le pasa al otro su tarjeta entera: nombre, rol, X, Telegram, npub, dirección Lightning y
-huella PGP (todo en un mensaje ESP-NOW de 241 bytes, "OSB2"; la huella va en binario para que quepa). Cada peer se
-guarda con todo eso en `/peers2.bin` (el `/peers.bin` de antes se pasa solo al nuevo formato).
-
-En `badge.local` (MODE largo) está la sección **People you met** con la lista, y se descargan como **vCard**
-(`/contacts.vcf`, se importan directos en la agenda del móvil) o **CSV** (`/contacts.csv`). Telegram y PGP se ponen
-en la misma página o por el puerto serie (`Ytelegram=@pepe`, `Ypgp=<huella>`).
-
-## Peer cercano
-
-Cada badge manda por ESP-NOW un "estoy aquí" cada segundo (`net/nearby`). Con la fuerza de la señal se sabe si
-otro badge está pegado (más de -60 dBm, un palmo o dos): sale un aviso abajo ("NEARBY · Satoshi · PEER TO
-CONNECT", o "ALREADY PEERS" en verde) y TX/RX laten en morado. Al pulsar PEER con alguien pegado, al otro le llega
-una invitación (pantalla INVITE): PEER acepta y los dos entran en el handshake.
-
-Los badges conectados a una WiFi están en el canal de esa WiFi; los que no tienen WiFi saltan de canal (primero
-1, 6 y 11) hasta oír a alguien y se quedan en su canal. Probado con dos badges: se encuentran en ~5 s.
-
-La radio la reparte `net/radio`: en NORMAL hay WiFi (si está configurada) y peer cercano; el handshake, el SETUP y
-el Seed Lab la piden en EXCLUSIVO y se apaga todo lo demás.
-
-## Zaps de Nostr
-
-En `badge.local` se pone el npub y una WiFi con internet (la del evento o el hotspot del móvil). El badge se
-conecta a relay.damus.io y relay.primal.net y se suscribe a los recibos de zap (kind 9735) dirigidos a ese npub.
-Cuando llega uno enseña la cantidad, quién lo manda (su nombre de Nostr si lo encuentra) y el mensaje, y enciende
-la ₿. Los sats van a la wallet de cada uno: el badge solo escucha. El punto morado de la cabecera indica que está
-escuchando; gris, que está conectando.
-
-Para probar sin internet: `J` seguido del mensaje del relay en una línea (ver `tools/`).
-
-## Monedero LNbits
-
-Cada badge puede llevar su monedero LNbits (`net/lnbits`): su dirección Lightning sale en el QR, y por un websocket
-con el servidor se entera al momento de cada pago (normal o zap de Nostr a su dirección) y lo celebra. El badge solo
-tiene la clave de lectura. En STATS, PEER largo abre WITHDRAW: el QR de retirada (LNURL-withdraw) de ese monedero,
-detrás de un aviso. Si un mismo pago llega por LNbits y por Nostr, sale una sola vez (se reconoce por la factura).
-
-- Grabar un badge: `py tools/grabar_badge.py COM67 42` (crea el monedero, la dirección y el enlace de retirada, y lo
-  graba con los comandos serie `n`, `L` y `W`). Necesita `tools/.env` (ver `tools/.env.ejemplo`). **Sin probar aún
-  contra el LNbits de verdad.**
-- Probar sin servidor: `py tools/lnbits_falso.py 5055` imita a LNbits; `/pagar` y `/zap` lanzan pagos de prueba.
-
-## NerdMiner
-
-`lib/nerdminer` es el núcleo del [NerdMiner_v2](https://github.com/BitMaker-hub/NerdMiner_v2) (MIT): stratum, SHA-256
-y el trabajador por hardware del ESP32-S3, recortado en `miner_core.cpp` (sin pantallas ni WiFiManager, con
-arrancar/parar). `net/miner` lo envuelve con el pool y la dirección (en `badge.local` o con el comando serie
-`Gpool|puerto|direccion`). Se entra desde LAB (SEED), y
-cuando la radio está en exclusivo (handshake, SETUP, Seed Lab) espera y sigue solo.
-
-- **De fábrica** mina en `pool.bitronics.store:3334` (el pool de NerdMiners de Bitronics) para la dirección de
-  Bitronics, worker `nerdminerBadge`: se mina sin configurar nada. Con una dirección propia en `badge.local`, el
-  premio es del dueño; la pantalla dice siempre a quién va.
-- Unos **140 kH/s**, a la vez que escucha Nostr y LNbits. "Shares" son los que acepta el pool (los mismos que
-  enseña su web); los de 32 bits del NerdMiner original salen en el comando `i`.
-- Mientras mina se quita del watchdog la tarea de reposo del núcleo 0 (como hace el NerdMiner); al parar se vuelve a
-  poner. Sin eso el chip se reiniciaba a los 5 s.
-- **Cuándo mina:** solo mientras se mira su pantalla, con USB o sin él (decisión de Roger: ni gasta batería ni
-  calienta a escondidas). Al salir, para.
-- **Dos páginas** (PEER o MODE cambian, SEED vuelve), siempre con el logotipo del NerdMiner arriba a la izquierda:
-  el minero (hashrate, gráfica, shares, dificultades, tiempo) y la red Bitcoin de mempool.space (precio, bloque,
-  comisión, dificultad, hashrate y una barra vertical hasta el halving; `net/bitcoin_info`, solo mientras se mira).
-- **Avisos:** "New job received" con una vuelta de 4 LEDs azules por la B, y "Share accepted!" con un parpadeo
-  verde de RX. Nunca la B entera de golpe: con el chip minando, el salto de consumo hace pitar la fuente.
-
-## Seed Lab
-
-Para aprender cómo nace una semilla. Se elige dado (50 o 99 tiradas) o moneda (128 o 256), 12 o 24 palabras, y se
-mete la entropía a mano con un dado o una moneda de verdad (moneda: PEER cara, MODE cruz; dado: PEER cambia la cara,
-MODE apunta). El badge saca las palabras BIP39, la primera dirección (m/84'/0'/0'/0/0) y la entropía, igual que el
-Seeder (las tiradas se pasan por SHA-256 como en Coldcard). Comprobado contra embit con las mismas tiradas.
-
-Mientras dura: radio apagada, capturas por el puerto serie bloqueadas y todo borrado de la memoria al salir. Es para
-aprender: el badge tiene radio y para fondos de verdad hay que usar un dispositivo sin conexión, como el Seeder.
-
-## Si se reinicia
-
-El comando `i` dice cuánto lleva encendido y por qué se reinició la última vez. Si fue un fallo (panic), el volcado
-queda en la partición `coredump` y se lee con el ELF de esa misma compilación:
-
-    esptool.py --chip esp32s3 --port COM67 read_flash 0xFF0000 0x10000 core.bin
-    python -m esp_coredump --chip esp32s3 info_corefile -t raw -c core.bin .pio/build/badge/firmware.elf
-
-Así se encontró el fallo del 2026-10-18: al entrar en el Seed Lab la radio apagaba la WiFi mientras Nostr aún
-cerraba sus conexiones TLS. Ahora Nostr, LNbits y el minero avisan con `radio::busy()` y la radio espera a que
-todos hayan cerrado antes de apagar.
-
-## Pendiente
-
-- Batería: medir consumo y apagar o atenuar pantalla y WiFi.
-- Avisar de pagos Lightning que no vengan de Nostr (Nostr Wallet Connect).
+[MIT](LICENSE)

@@ -20,7 +20,7 @@ static uint8_t  fails = 0;
 
 // AHORRO (con batería y la pantalla apagada en las páginas de inicio): la radio
 // solo se enciende a ratos. Medido en el #980: con la radio siempre encendida
-// el badge gasta ~117 mA y la radio es casi todo. Decisión de Roger: 10 s
+// el badge gasta ~117 mA y la radio es casi todo. Por eso: 10 s
 // encendida y 10 s apagada. En cada ventana, como siempre: si hay WiFi
 // configurada se conecta (zaps casi al momento; Nostr da al reconectar los que
 // llegaron con la radio apagada) y el peer cercano va en el canal de la WiFi;

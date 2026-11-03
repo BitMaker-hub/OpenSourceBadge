@@ -212,7 +212,7 @@ window.fetch = (url, opt) => {
     return Promise.resolve({json: () => ({number: 42, configured: location.hash !== "#nuevo", name: "satoshi.friends", handle: "@satoshi", npub: "", ln: "",
       tagline: "Stay humble, stack sats", telegram: "@satoshi", pgp: "", maddr: "", maddrDefault: "bc1qcnwjerakcqn5etns97ma3vfk9e4mp66ghscmft", role: "DEV", roles: [["DEV","#38BCF8"],["MINER","#F8CC10"],["PLEB","#F09018"],["WHALE","#E0E4E8"],["NOSTRICH","#A088F8"],["ANON","#989CA8"]]})});
   if (url === "/api/profile") return new Promise(r => setTimeout(() => r({ok: true}), 400));
-  if (url.startsWith("/api/networks")) return Promise.resolve({json: () => [{s: "iPhone de Roger", r: -48, o: false},
+  if (url.startsWith("/api/networks")) return Promise.resolve({json: () => [{s: "iPhone de Ana", r: -48, o: false},
     {s: "BitcoinAmsterdam-Guest", r: -61, o: true}, {s: "Bitronics", r: -74, o: false}, {s: "Venue-Staff", r: -83, o: false}]});
   if (url === "/api/peers") return Promise.resolve({json: () => [
     {number: 764, name: "Satoshi", role: "ANON", color: "#989CA8", x: "@satoshi", telegram: "@nakamoto", npub: "npub1gzuushllat7pet0ccv9yuhygvc8ldeyhrgxuwg744dn5khnpk3gs3ea5ds",

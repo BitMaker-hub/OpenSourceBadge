@@ -282,7 +282,7 @@ void loop() {
   // procesador a 80 MHz (le sobra; el minero sí necesita los 240)
   const bool usb = power::usbConnected() && !simulateBattery;
   // La pantalla se apaga sola en todas partes, también con un QR (para cobrar,
-  // se pulsa un botón y vuelve con el QR y la radio entera). Decisión de Roger:
+  // se pulsa un botón y vuelve con el QR y la radio entera). A propósito:
   // si se queda encendida con el QR, la batería se va en una noche.
   const State st = app::current();
   backlight::loop(usb);
