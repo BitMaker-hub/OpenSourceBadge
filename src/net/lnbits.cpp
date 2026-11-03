@@ -289,6 +289,7 @@ static void task(void*) {
       } else if (radio::online()) {
         wantWithdraw = false;
         radio::busy(radio::User::Lnbits, true);
+        radio::Handshake fullSpeed;
         createWithdraw();
       }
     }
@@ -298,6 +299,7 @@ static void task(void*) {
 
     if (!socketStarted) {
       radio::busy(radio::User::Lnbits, true);
+      radio::Handshake fullSpeed;   // dos llamadas HTTPS seguidas
       fetchBalance();
       fetchMissed();
       const String path = basePath + "/api/v1/ws/" + inkey;
@@ -308,7 +310,12 @@ static void task(void*) {
       socket.enableHeartbeat(30000, 5000, 2);   // si el servidor deja de contestar, se reconecta
       socketStarted = true;
     }
-    socket.loop();
+    if (socket.isConnected()) {
+      socket.loop();
+    } else {
+      radio::Handshake fullSpeed;   // si le toca, aquí dentro conecta: el saludo TLS
+      socket.loop();
+    }
     state = socket.isConnected() ? Status::Listening : Status::Connecting;
     vTaskDelay(pdMS_TO_TICKS(10));
   }

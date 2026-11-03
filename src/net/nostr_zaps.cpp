@@ -205,7 +205,12 @@ static void task(void*) {
     }
     bool anyConnected = false;
     for (auto& s : sockets) {
-      s.loop();
+      if (s.isConnected()) {
+        s.loop();
+      } else {
+        radio::Handshake fullSpeed;   // si le toca, aquí dentro conecta: el saludo TLS
+        s.loop();
+      }
       if (s.isConnected()) anyConnected = true;
     }
     state = anyConnected ? Status::Listening : Status::ConnectingRelay;

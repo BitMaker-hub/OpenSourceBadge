@@ -57,4 +57,14 @@ uint32_t onlineSince();         // millis() en que conectó (0 si no lo está): 
 // Cuando online() pasa a false, cada uno cierra lo suyo y avisa.
 void busy(User who, bool open);
 
+// "Estoy abriendo una conexión TLS": mientras viva el objeto, el loop pone la CPU a
+// 240. El saludo TLS es cálculo pesado en el núcleo 0: con batería (80 MHz), los 3
+// relays y LNbits saludando a la vez lo dejaban más de 5 s sin respiro, saltaba el
+// watchdog y el badge se reiniciaba en bucle nada más conectar (#308, 2026-10-30).
+struct Handshake {
+  Handshake();
+  ~Handshake();
+};
+bool handshaking();
+
 }  // namespace radio

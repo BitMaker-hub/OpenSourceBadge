@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <time.h>
+#include <atomic>
 
 namespace radio {
 
@@ -198,5 +199,10 @@ bool online()     { return state == Status::Online; }
 bool hasNetwork() { return !ssid.isEmpty(); }
 
 void busy(User who, bool open) { users[(int)who] = open; }
+
+static std::atomic<int> handshakes{0};   // las tareas de red están todas en el núcleo 0 y se pisan
+Handshake::Handshake()  { handshakes++; }
+Handshake::~Handshake() { handshakes--; }
+bool handshaking() { return handshakes > 0; }
 
 }  // namespace radio

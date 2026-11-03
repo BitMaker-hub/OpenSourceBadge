@@ -35,6 +35,7 @@
 #include "app/battery_log.h"
 #include <mbedtls/platform.h>
 #include <esp_heap_caps.h>
+#include <esp_task_wdt.h>
 
 static const uint32_t FRAME_MS = 33;   // ~30 imágenes por segundo
 
@@ -242,6 +243,9 @@ void setup() {
   Serial.setRxBufferSize(8192);   // para el comando J: un recibo de zap ocupa varios KB
   Serial.begin(115200);
   mbedtls_platform_set_calloc_free(tlsCalloc, tlsFree);   // antes de cualquier conexión TLS
+  // El watchdog de tareas, a 15 s en vez de 5: un cuelgue de verdad sigue reiniciando
+  // el badge, pero un rato largo de cálculo (varios saludos TLS a la vez) ya no
+  esp_task_wdt_init(15, true);
   lowbattery::begin();   // antes que nada: si venimos de dormir por batería baja, soltar los pines
   power::begin();     // lo primero: sin GPIO15 alto, con batería no hay pantalla
   buttons::begin();
@@ -287,9 +291,11 @@ void loop() {
                 (st == State::Profile || st == State::QrCodes || st == State::QrFullscreen ||
                  st == State::Peers || st == State::Stats));
   lowbattery::loop(usb);
-  // Mientras la WiFi conecta, a 240: la clave WPA2 se calcula en el núcleo 0 y a
-  // 80 MHz lo dejaba sin respiro más de 5 s (salta el watchdog y se reinicia).
-  const uint32_t mhz = usb || miner::running() || radio::status() == radio::Status::Connecting ? 240 : 80;
+  // Mientras la WiFi conecta o una conexión TLS saluda, a 240: la clave WPA2 y el
+  // saludo TLS se calculan en el núcleo 0 y a 80 MHz lo dejaban sin respiro más
+  // de 5 s (salta el watchdog y se reinicia).
+  const uint32_t mhz = usb || miner::running() || radio::status() == radio::Status::Connecting ||
+                       radio::handshaking() ? 240 : 80;
   if (getCpuFrequencyMhz() != mhz) setCpuFrequencyMhz(mhz);
   batterylog::loop(app::stateName(app::current()));
   leds::show();

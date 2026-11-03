@@ -57,7 +57,7 @@ static void task(void*) {
     const bool due = lastAt == 0 || millis() - lastAt > EVERY_MS;
     if (wanted && due && radio::online()) {
       radio::busy(radio::User::BitcoinInfo, true);
-      update();
+      { radio::Handshake fullSpeed; update(); }
       radio::busy(radio::User::BitcoinInfo, false);
       lastAt = millis();
     }
