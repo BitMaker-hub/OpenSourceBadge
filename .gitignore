@@ -3,3 +3,4 @@
 tools/.env
 __pycache__/
 release/
+tools/lote.csv
