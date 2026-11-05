@@ -34,11 +34,17 @@ monedero de uno que ya tenga monedero: a ese, como mucho, le pone la WiFi del .e
 (así se puede pasar el lote otra vez solo para la WiFi). Se salta los números que ya tienen monedero en LNbits o están en tools/lote.csv,
 el registro de lo grabado (no lleva claves, pero sí las direcciones: no se sube al repo).
 """
-import codecs, csv, json, os, re, sys, time, urllib.parse, urllib.request, urllib.error
+import builtins, codecs, csv, json, os, re, sys, threading, time, urllib.parse, urllib.request, urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REGISTRO = os.path.join(HERE, "lote.csv")
 ESPRESSIF = 0x303A          # el USB propio del ESP32-S3: así sale el badge (y cualquier otro S3 por USB)
+_said = threading.Lock()
+
+
+def print(*args, **kw):     # con varios badges a la vez, que no se mezclen las líneas
+    with _said:
+        builtins.print(*args, flush=True, **kw)
 
 
 def load_env():
@@ -140,8 +146,10 @@ def badge_lines(env, number, wallet):
 
 # Lo que contesta a «i»: "Badge #042 Nombre, firmware v1.0.0 (0d61bf7)", más abajo
 # "  WiFi:  Red (con contraseña)" y "  LNbits: escuchando, badge042@dominio, saldo 0 sats".
-# Los firmwares de antes de la 1.0.0 no dicen la versión.
-INFO = re.compile(r"Badge #(\d+)[^\r\n]*?(?:, firmware v(\S+) \(([^)]*)\))?\r?\n"
+# Los firmwares de antes de la 1.0.0 no dicen la versión. Va anclado al principio de la línea porque
+# al arrancar escribe "[badge] #417 Badge #417, 0 peers", que sin el ancla pasaba por la respuesta
+# (y daba la versión por desconocida).
+INFO = re.compile(r"(?m)^Badge #(\d+)[^\r\n]*?(?:, firmware v(\S+) \(([^)]*)\))?\r?\n"
                   r"[\s\S]*?WiFi:\s+([^\r\n]*)\r?\n"
                   r"[\s\S]*?LNbits: ([^,\r\n]*), ([^,\r\n]*), saldo")
 CON_CLAVE = " (con contraseña)"
@@ -178,6 +186,7 @@ class Badge:
                 wifi = m.group(4)
                 return {"number": int(m.group(1)),
                         "firmware": "v%s (%s)" % (m.group(2), m.group(3)) if m.group(2) else "?",
+                        "version": m.group(2),
                         "ssid": "" if wifi == "(ninguna)" else wifi[:-len(CON_CLAVE)] if wifi.endswith(CON_CLAVE) else wifi,
                         "address": m.group(6).strip()}
         return None
@@ -213,6 +222,19 @@ class Badge:
     def close(self):
         self.s.close()
 
+    @classmethod
+    def reopen(cls, port, timeout=20):
+        """Abre otra vez el puerto de un badge que se acaba de reiniciar (tras grabarle el firmware)."""
+        import serial
+        end = time.time() + timeout
+        while True:
+            try:
+                return cls(port)
+            except serial.SerialException:
+                if time.time() > end:
+                    raise
+                time.sleep(1)
+
 
 def taken_numbers(env, with_wallet):
     """Los números que ya son de alguien: los del registro y los que tienen monedero en LNbits."""
@@ -237,39 +259,75 @@ def log(number, port, address, ssid, firmware, result):
         out.writerow([time.strftime("%Y-%m-%d %H:%M:%S"), number, port, address, ssid, firmware, result])
 
 
-def provision(port, number, last, taken, env, with_wallet):
-    """Graba el badge de ese puerto con el primer número libre desde «number». Devuelve el
-    número por el que seguir, o None si ya no quedan del lote."""
+def latest_release():
+    """La versión de platformio.ini y su firmware de la release (release/vX.Y.Z), si está bajado."""
+    repo = os.path.dirname(HERE)
+    with open(os.path.join(repo, "platformio.ini"), encoding="utf-8") as f:
+        m = re.search(r"^custom_version\s*=\s*(\S+)", f.read(), re.M)
+    if not m:
+        return None
+    path = os.path.join(repo, "release", "v" + m.group(1), "opensourcebadge-firmware.bin")
+    return {"version": m.group(1), "file": path} if os.path.exists(path) else None
+
+
+def flash_firmware(port, path):
+    """Graba solo el firmware (0x10000): el número, el monedero, la WiFi y los contactos se quedan."""
+    import subprocess
+    base = [sys.executable, "-m", "esptool", "--chip", "esp32s3", "--port", port]
+    for extra in ([], ["--no-stub"]):       # a veces el stub no ve la flash; sin él, sí
+        r = subprocess.run(base + extra + ["write_flash", "0x10000", path], capture_output=True, text=True)
+        if r.returncode == 0:
+            return True
+    print("%s: esptool dice: %s" % (port, (r.stdout + r.stderr).strip().splitlines()[-1:]))
+    return False
+
+
+def provision(port, allocate, taken, env, with_wallet, latest):
+    """Graba el badge de ese puerto: le pone al día el firmware si es viejo y, si no tiene monedero,
+    le da el siguiente número libre (allocate) con el suyo. Devuelve False si ya no quedan números."""
     badge = Badge(port)
     try:
         before = badge.info()
         if not before:
             print("%s: no contesta como un badge (otro aparato, o un badge sin el firmware). No le toco nada." % port)
-            return number
+            return
+        if latest and before["version"] != latest["version"]:
+            print("%s: es el #%03d con el firmware %s: lo actualizo a la v%s, sin tocar lo que tiene"
+                  % (port, before["number"], before["firmware"], latest["version"]))
+            badge.close()
+            if not flash_firmware(port, latest["file"]):
+                print("%s: FALLO al grabar el firmware. Grábalo desde el flasher con «Keep configuration»." % port)
+                return
+            badge = Badge.reopen(port)
+            updated = badge.info()
+            if not updated or updated["version"] != latest["version"] or updated["address"] != before["address"]:
+                print("%s: FALLO: tras actualizarlo dice %s" % (port, updated["firmware"] if updated else "nada"))
+                return
+            before = updated
+            print("%s: #%03d ya lleva la v%s" % (port, before["number"], latest["version"]))
         if before["address"]:
             # Ya grabado: el número y el monedero no se tocan. Como mucho, la WiFi del .env si no la tiene
             ssid = env.get("WIFI_SSID", "").strip()
             if not ssid or before["ssid"] == ssid:
-                print("%s: es el #%03d y ya tiene monedero (%s)%s. No le toco nada."
+                print("%s: es el #%03d y ya tiene monedero (%s)%s. No le toco nada más. Desenchúfalo."
                       % (port, before["number"], before["address"], " y la WiFi " + ssid if ssid else ""))
-                return number
+                return
             print("%s: es el #%03d y ya tiene monedero (%s). Solo le pongo la WiFi %s."
                   % (port, before["number"], before["address"], ssid))
             badge.send(["W%s|%s" % (ssid, env.get("WIFI_PASS", ""))])
             after = badge.info()
             ok = after and after["ssid"] == ssid and after["address"] == before["address"]
-            print("  #%03d %s" % (before["number"], "listo. Desenchúfalo y enchufa el siguiente." if ok else
+            print("%s: #%03d %s" % (port, before["number"], "listo. Desenchúfalo y enchufa el siguiente." if ok else
                   "FALLO: dice tener la WiFi %s" % (after["ssid"] or "ninguna") if after else "FALLO: ha dejado de contestar"))
             log(before["number"], port, before["address"], ssid, before["firmware"], "ok, solo WiFi" if ok else "fallo al poner la WiFi")
-            return number
+            return
         if not with_wallet and before["number"] in taken:
             print("%s: es el #%03d, ya grabado en este lote. No le toco nada." % (port, before["number"]))
-            return number
-        while number in taken:
-            number += 1
-        if last is not None and number > last:
-            print("%s: ya no quedan números en el lote (el último era el #%03d). No le toco nada." % (port, last))
-            return None
+            return
+        number = allocate()
+        if number is None:
+            print("%s: ya no quedan números en el lote. No le toco nada." % port)
+            return False
         print("%s: firmware %s, será el #%03d" % (port, before["firmware"], number))
         wallet = make_wallet(env, number) if with_wallet else None
         badge.send(badge_lines(env, number, wallet))
@@ -284,18 +342,16 @@ def provision(port, number, last, taken, env, with_wallet):
                 problems.append("su monedero es %s" % (after["address"] or "ninguno"))
             if env.get("WIFI_SSID") and after["ssid"] != env["WIFI_SSID"].strip():
                 problems.append("su WiFi es %s" % (after["ssid"] or "ninguna"))
-        taken.add(number)
-        log(number, port, wallet["address"] if wallet else "", env.get("WIFI_SSID", ""), before["firmware"],
-            "ok" if not problems else "; ".join(problems))
+        log(number, port, wallet["address"] if wallet else "", env.get("WIFI_SSID", ""),
+            after["firmware"] if after else before["firmware"], "ok" if not problems else "; ".join(problems))
         if problems:
             # A mano reutiliza su monedero (va por el nombre), y el lote ya no lo toca si lo tiene
-            print("  FALLO en el #%03d: %s. Grábalo a mano: py tools/grabar_badge.py %s %d"
-                  % (number, ", ".join(problems), port, number))
+            print("%s: FALLO en el #%03d: %s. Grábalo a mano: py tools/grabar_badge.py %s %d"
+                  % (port, number, ", ".join(problems), port, number))
         else:
-            print("  #%03d listo%s%s. Desenchúfalo y enchufa el siguiente."
-                  % (number, ": " + wallet["address"] if wallet else "",
+            print("%s: #%03d listo%s%s. Desenchúfalo y enchufa el siguiente."
+                  % (port, number, ": " + wallet["address"] if wallet else "",
                      ", WiFi " + env["WIFI_SSID"] if env.get("WIFI_SSID") else ""))
-        return number + 1
     finally:
         badge.close()
 
@@ -323,51 +379,90 @@ def set_wifi(port, ssid, password):
 
 
 def watch(handle):
-    """Espera badges y se los pasa a handle(puerto) de uno en uno. Acaba con Ctrl+C o si handle
-    devuelve False."""
+    """Espera badges y se los pasa a handle(puerto), cada uno en su hilo: con un hub van a la vez.
+    Acaba con Ctrl+C o cuando handle devuelve False (y entonces espera a los que están a medias)."""
     import serial
-    done, tries = set(), {}
-    try:
-        while True:
-            present = badge_ports()
-            done &= present             # el que se desenchufa se olvida: su puerto puede volver con otro badge
-            tries = {p: n for p, n in tries.items() if p in present}
-            waiting = sorted(present - done)
-            if not waiting:
-                time.sleep(0.5)
-                continue
-            port = waiting[0]
-            done.add(port)
-            try:
-                if handle(port) is False:
-                    break
-            except serial.SerialException as e:
-                # Recién enchufado, a veces el puerto aparece y desaparece un momento: se reintenta.
-                # Repetirlo no lía nada, porque lo que ya tenga grabado no se vuelve a tocar.
+    lock = threading.Lock()
+    done, active, tries = set(), set(), {}
+    stop = threading.Event()
+
+    def run(port):
+        try:
+            if handle(port) is False:
+                stop.set()
+        except serial.SerialException as e:
+            # Recién enchufado, a veces el puerto aparece y desaparece un momento: se reintenta.
+            # Repetirlo no lía nada, porque lo que ya tenga grabado no se vuelve a tocar.
+            with lock:
                 tries[port] = tries.get(port, 0) + 1
-                if tries[port] < 4:
-                    print("%s: no se deja abrir todavía, lo reintento en 2 s" % port)
+                again = tries[port] < 4
+            if again:
+                print("%s: no se deja abrir todavía, lo reintento en 2 s" % port)
+                time.sleep(2)
+                with lock:
                     done.discard(port)
-                    time.sleep(2)
-                else:
-                    print("%s: no se deja abrir (%s). Desenchúfalo y vuelve a enchufarlo." % (port, e))
+            else:
+                print("%s: no se deja abrir (%s). Desenchúfalo y vuelve a enchufarlo." % (port, e))
+        except (Exception, SystemExit) as e:    # que un badge, o un fallo de LNbits, no tumbe a los demás
+            print("%s: FALLO: %s" % (port, e))
+        finally:
+            with lock:
+                active.discard(port)
+
+    try:
+        while not stop.is_set():
+            present = badge_ports()
+            with lock:
+                # El que se desenchufa se olvida (su puerto puede volver con otro badge), salvo si
+                # está a medias: al grabarle el firmware su puerto se va y vuelve
+                done &= present | active
+                tries = {p: n for p, n in tries.items() if p in present or p in active}
+                waiting = sorted(present - done - active)
+                done |= set(waiting)
+                active |= set(waiting)
+            for port in waiting:
+                threading.Thread(target=run, args=(port,), daemon=True).start()
+            time.sleep(0.5)
+        while active:
+            time.sleep(0.5)
     except KeyboardInterrupt:
         pass
 
 
 def batch(env, spec, with_wallet):
     first, _, last = spec.partition("-")
-    number, last = int(first), int(last) if last else None
-    if not 0 < number <= (last or 999) <= 999:
+    first, last = int(first), int(last) if last else None
+    if not 0 < first <= (last or 999) <= 999:
         raise SystemExit("El lote va del 1 al 999: --lote 101-130")
     taken = taken_numbers(env, with_wallet)
+    latest = latest_release()
     print("Lote desde el #%03d%s. Enchufa los badges, de uno en uno o varios en un hub. Ctrl+C para acabar."
-          % (number, " hasta el #%03d" % last if last else ""))
-    state = {"number": number}
+          % (first, " hasta el #%03d" % last if last else ""))
+    print("Los que lleven un firmware que no sea el v%s se actualizan antes, sin perder nada." % latest["version"]
+          if latest else "OJO: no está el firmware de la release en release/: no actualizo ninguno.")
+    lock = threading.Lock()
+    state = {"next": first}
+
+    def free():
+        n = state["next"]
+        while n in taken:
+            n += 1
+        return n
+
+    def allocate():
+        with lock:
+            n = free()
+            if last is not None and n > last:
+                return None
+            taken.add(n)
+            state["next"] = n + 1
+            return n
 
     def handle(port):
-        state["number"] = provision(port, state["number"], last, taken, env, with_wallet)
-        return state["number"] is not None and (last is None or state["number"] <= last)
+        if provision(port, allocate, taken, env, with_wallet, latest) is False:
+            return False
+        with lock:
+            return last is None or free() <= last
 
     watch(handle)
     print("Fin del lote. Lo grabado está en", REGISTRO)
