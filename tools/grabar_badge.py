@@ -27,8 +27,9 @@ Hecho para LNbits 1.6.2 (mirando su /openapi.json): crear un monedero pide el to
 En lote (--lote 101-130, o --lote 101 para seguir hasta Ctrl+C) no hace falta decir el puerto:
 espera a que se enchufe un badge, lo graba, lo reinicia y comprueba lo que dice tras el reinicio
 (así se sabe que está en la flash y no solo en la memoria). Luego, a por el siguiente; con un hub
-se pueden enchufar varios a la vez. No toca nada que no conteste como un badge, ni un badge que
-ya tenga monedero. Se salta los números que ya tienen monedero en LNbits o están en tools/lote.csv,
+se pueden enchufar varios a la vez. No toca nada que no conteste como un badge, ni el número y el
+monedero de uno que ya tenga monedero: a ese, como mucho, le pone la WiFi del .env si no la tiene
+(así se puede pasar el lote otra vez solo para la WiFi). Se salta los números que ya tienen monedero en LNbits o están en tools/lote.csv,
 el registro de lo grabado (no lleva claves, pero sí las direcciones: no se sube al repo).
 """
 import codecs, csv, json, os, re, sys, time, urllib.parse, urllib.request, urllib.error
@@ -244,7 +245,20 @@ def provision(port, number, last, taken, env, with_wallet):
             print("%s: no contesta como un badge (otro aparato, o un badge sin el firmware). No le toco nada." % port)
             return number
         if before["address"]:
-            print("%s: es el #%03d y ya tiene monedero (%s). No le toco nada." % (port, before["number"], before["address"]))
+            # Ya grabado: el número y el monedero no se tocan. Como mucho, la WiFi del .env si no la tiene
+            ssid = env.get("WIFI_SSID", "").strip()
+            if not ssid or before["ssid"] == ssid:
+                print("%s: es el #%03d y ya tiene monedero (%s)%s. No le toco nada."
+                      % (port, before["number"], before["address"], " y la WiFi " + ssid if ssid else ""))
+                return number
+            print("%s: es el #%03d y ya tiene monedero (%s). Solo le pongo la WiFi %s."
+                  % (port, before["number"], before["address"], ssid))
+            badge.send(["W%s|%s" % (ssid, env.get("WIFI_PASS", ""))])
+            after = badge.info()
+            ok = after and after["ssid"] == ssid and after["address"] == before["address"]
+            print("  #%03d %s" % (before["number"], "listo. Desenchúfalo y enchufa el siguiente." if ok else
+                  "FALLO: dice tener la WiFi %s" % (after["ssid"] or "ninguna") if after else "FALLO: ha dejado de contestar"))
+            log(before["number"], port, before["address"], ssid, before["firmware"], "ok, solo WiFi" if ok else "fallo al poner la WiFi")
             return number
         if not with_wallet and before["number"] in taken:
             print("%s: es el #%03d, ya grabado en este lote. No le toco nada." % (port, before["number"]))
