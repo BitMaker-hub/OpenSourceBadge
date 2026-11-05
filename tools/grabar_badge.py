@@ -326,21 +326,31 @@ def watch(handle):
     """Espera badges y se los pasa a handle(puerto) de uno en uno. Acaba con Ctrl+C o si handle
     devuelve False."""
     import serial
-    done = set()
+    done, tries = set(), {}
     try:
         while True:
             present = badge_ports()
             done &= present             # el que se desenchufa se olvida: su puerto puede volver con otro badge
+            tries = {p: n for p, n in tries.items() if p in present}
             waiting = sorted(present - done)
             if not waiting:
                 time.sleep(0.5)
                 continue
-            done.add(waiting[0])
+            port = waiting[0]
+            done.add(port)
             try:
-                if handle(waiting[0]) is False:
+                if handle(port) is False:
                     break
             except serial.SerialException as e:
-                print("%s: se ha desenchufado a medias o no se deja abrir (%s)" % (waiting[0], e))
+                # Recién enchufado, a veces el puerto aparece y desaparece un momento: se reintenta.
+                # Repetirlo no lía nada, porque lo que ya tenga grabado no se vuelve a tocar.
+                tries[port] = tries.get(port, 0) + 1
+                if tries[port] < 4:
+                    print("%s: no se deja abrir todavía, lo reintento en 2 s" % port)
+                    done.discard(port)
+                    time.sleep(2)
+                else:
+                    print("%s: no se deja abrir (%s). Desenchúfalo y vuelve a enchufarlo." % (port, e))
     except KeyboardInterrupt:
         pass
 
