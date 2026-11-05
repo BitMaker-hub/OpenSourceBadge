@@ -3,6 +3,8 @@
     py tools/grabar_badge.py COM67 42
     py tools/grabar_badge.py COM67 42 --sin-monedero
     py tools/grabar_badge.py --lote 101-130      en lote: graba cada badge según se enchufa (ver abajo)
+    py tools/grabar_badge.py --wifi "Red" "clave"   solo la WiFi, a cada badge según se enchufa: sin
+                                                 tocar número ni monedero, y sin .env ni internet
 
 Lee la configuración de tools/.env (NO se sube al repo; ver tools/.env.ejemplo):
 
@@ -298,18 +300,35 @@ def provision(port, number, last, taken, env, with_wallet):
         badge.close()
 
 
-def batch(env, spec, with_wallet):
+def set_wifi(port, ssid, password):
+    """Solo la WiFi: ni número ni monedero, y sin LNbits ni internet."""
+    badge = Badge(port)
+    try:
+        before = badge.info()
+        if not before:
+            print("%s: no contesta como un badge (otro aparato, o un badge sin el firmware). No le toco nada." % port)
+            return
+        badge.send(["W%s|%s" % (ssid, password)])
+        after = badge.info()
+        ok = after and after["ssid"] == ssid and after["number"] == before["number"] and after["address"] == before["address"]
+        if ok:
+            print("%s: #%03d con la WiFi %s%s. Desenchúfalo y enchufa el siguiente."
+                  % (port, after["number"], ssid, " (su monedero, %s, sigue ahí)" % after["address"] if after["address"] else " (no tiene monedero)"))
+        else:
+            print("%s: FALLO en el #%03d: %s" % (port, before["number"], "dice tener la WiFi %s" % (after["ssid"] or "ninguna")
+                                                  if after else "ha dejado de contestar"))
+        log(before["number"], port, before["address"], ssid, before["firmware"], "ok, solo WiFi" if ok else "fallo al poner la WiFi")
+    finally:
+        badge.close()
+
+
+def watch(handle):
+    """Espera badges y se los pasa a handle(puerto) de uno en uno. Acaba con Ctrl+C o si handle
+    devuelve False."""
     import serial
-    first, _, last = spec.partition("-")
-    number, last = int(first), int(last) if last else None
-    if not 0 < number <= (last or 999) <= 999:
-        raise SystemExit("El lote va del 1 al 999: --lote 101-130")
-    taken = taken_numbers(env, with_wallet)
-    print("Lote desde el #%03d%s. Enchufa los badges, de uno en uno o varios en un hub. Ctrl+C para acabar."
-          % (number, " hasta el #%03d" % last if last else ""))
     done = set()
     try:
-        while number is not None and (last is None or number <= last):
+        while True:
             present = badge_ports()
             done &= present             # el que se desenchufa se olvida: su puerto puede volver con otro badge
             waiting = sorted(present - done)
@@ -318,15 +337,51 @@ def batch(env, spec, with_wallet):
                 continue
             done.add(waiting[0])
             try:
-                number = provision(waiting[0], number, last, taken, env, with_wallet)
+                if handle(waiting[0]) is False:
+                    break
             except serial.SerialException as e:
                 print("%s: se ha desenchufado a medias o no se deja abrir (%s)" % (waiting[0], e))
     except KeyboardInterrupt:
         pass
+
+
+def batch(env, spec, with_wallet):
+    first, _, last = spec.partition("-")
+    number, last = int(first), int(last) if last else None
+    if not 0 < number <= (last or 999) <= 999:
+        raise SystemExit("El lote va del 1 al 999: --lote 101-130")
+    taken = taken_numbers(env, with_wallet)
+    print("Lote desde el #%03d%s. Enchufa los badges, de uno en uno o varios en un hub. Ctrl+C para acabar."
+          % (number, " hasta el #%03d" % last if last else ""))
+    state = {"number": number}
+
+    def handle(port):
+        state["number"] = provision(port, state["number"], last, taken, env, with_wallet)
+        return state["number"] is not None and (last is None or state["number"] <= last)
+
+    watch(handle)
     print("Fin del lote. Lo grabado está en", REGISTRO)
 
 
+def wifi_batch(ssid, password):
+    # Lo mismo que rechaza el flasher: el badge recorta los dos campos y parte la línea en la primera barra
+    if not ssid or len(ssid.encode()) > 32 or "|" in ssid or ssid != ssid.strip():
+        raise SystemExit("La red: de 1 a 32 caracteres, sin | ni espacios al principio o al final")
+    if password != password.strip() or (password and not 8 <= len(password) <= 63):
+        raise SystemExit("La contraseña: de 8 a 63 caracteres sin espacios al principio o al final, o nada si es abierta")
+    print("Solo la WiFi %s%s. Enchufa los badges, de uno en uno o varios en un hub. Ctrl+C para acabar."
+          % (ssid, " con contraseña" if password else ", abierta"))
+    watch(lambda port: set_wifi(port, ssid, password))
+    print("Fin. Lo grabado está en", REGISTRO)
+
+
 def main():
+    if "--wifi" in sys.argv:                    # sin .env: no hace falta LNbits
+        args = sys.argv[sys.argv.index("--wifi") + 1:]
+        if not args:
+            raise SystemExit('Falta la red: py tools/grabar_badge.py --wifi "Red" "contraseña"')
+        wifi_batch(args[0], args[1] if len(args) > 1 else "")
+        return
     with_wallet = "--sin-monedero" not in sys.argv
     env = load_env()
     if "--lote" in sys.argv:
