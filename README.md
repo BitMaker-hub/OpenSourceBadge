@@ -17,7 +17,8 @@ Designed by [Bitmaker](https://github.com/BitMaker-hub) · built by [Bitronics](
   Lightning address is in the QR and every payment shows up at once.
 - **NerdMiner.** Solo mining at ~140 kH/s with the hardware SHA-256 of the ESP32-S3, only while you look at
   its screen. Out of the box it mines on `pool.bitronics.store:3334`; put your own address in `badge.local`
-  and the block is yours.
+  and the block is yours. If it restarts while mining (a power cut, an empty battery), it goes back to
+  mining on its own; leave with SEED and it starts on your profile again.
 - **Seed Lab.** Learn how a BIP39 seed is born from dice or coin tosses (no chip RNG). Radio off while it
   runs. It is a learning tool: for real funds use an offline device such as the
   [Seeder](https://github.com/BitMaker-hub/Seeder).

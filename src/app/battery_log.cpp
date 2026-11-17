@@ -31,12 +31,18 @@ static uint16_t averagedBattery() {
   return sum / 8;
 }
 
-void begin() {
+void begin(const char* resetReason) {
   Preferences prefs;
   prefs.begin("badge", false);
   bootId = prefs.getULong("boot_id", 0) + 1;
   prefs.putULong("boot_id", bootId);
   prefs.end();
+  // La primera línea de cada arranque dice por qué arrancó: así se distingue un
+  // corte de luz de un fallo (watchdog, panic, bajada de tensión)
+  File f = LittleFS.open(FILE_NOW, FILE_APPEND);
+  if (!f) return;
+  f.printf("%lu,0,%u,%u,ARRANQUE %s,-,0\n", (unsigned long)bootId, averagedBattery(), power::usbMillivolts(), resetReason);
+  f.close();
 }
 
 void loop(const char* stateName) {

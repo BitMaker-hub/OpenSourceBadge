@@ -26,7 +26,12 @@ constexpr uint16_t    DEFAULT_PORT    = 3334;
 constexpr const char* DEFAULT_ADDRESS = "bc1qcnwjerakcqn5etns97ma3vfk9e4mp66ghscmft";
 constexpr const char* WORKER          = "nerdminerBadge";
 
-void begin();                 // lee la configuración y, si estaba minando, sigue
+void begin();                 // lee la configuración
+
+// Si se quedó minando (un corte de luz, un reinicio...), al arrancar vuelve al
+// minero en vez de al perfil. Se olvida solo cuando el dueño sale con SEED.
+void remember(bool mining);
+bool wasMining();
 
 void setConfig(const String& pool, uint16_t port, const String& address);
 String   pool();

@@ -13,12 +13,14 @@
 //  Cada línea: arranque, segundos desde ese arranque, mV de batería, mV del
 //  USB, estado, radio, minando (1/0). Sobrevive a los reinicios (cada arranque
 //  tiene su número), así que también se ve si se apagó por batería baja.
+//  La primera línea de cada arranque lleva el motivo (ARRANQUE encendido
+//  normal, FALLO (panic), BAJADA DE TENSIÓN...).
 // ============================================================================
 #include <Arduino.h>
 
 namespace batterylog {
 
-void begin();
+void begin(const char* resetReason);   // apunta por qué ha arrancado
 void loop(const char* stateName);   // apunta una línea cuando toca
 void dump();
 void clear();

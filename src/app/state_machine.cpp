@@ -169,7 +169,8 @@ static const uint32_t BOOT_END  = BADGE_AT + 3200;
 static const Color    BITRONICS_GOLD = 0xECD400;
 
 static void boot(ButtonEvent ev, uint32_t t) {
-  if (ev != ButtonEvent::None || t > BOOT_END) return go(State::Profile);
+  // Si se apagó minando (un corte de luz, un reinicio), sigue minando: es un NerdMiner
+  if (ev != ButtonEvent::None || t > BOOT_END) return go(miner::wasMining() ? State::Miner : State::Profile);
 
   if (t < MAKERS_AT) {
     // Escena 1. En los últimos 300 ms la B se apaga con la pantalla
@@ -659,6 +660,7 @@ static void onEnter(State s) {
       seenShares = st.accepted;
       toastText = "";
       minerPage = 0;
+      miner::remember(true);   // si se reinicia, vuelve aquí
       break;
     }
     default:                                       break;   // el resto no prepara nada
@@ -675,6 +677,7 @@ static void onExit(State s) {
       nostrzaps::reload();
       break;
     case State::SeedLab:   seedlab::wipe();  radio::exclusive(false); break;   // no queda nada en memoria
+    case State::Miner:     miner::remember(false); break;                      // salió el dueño con SEED
     default:                                 break;
   }
 }

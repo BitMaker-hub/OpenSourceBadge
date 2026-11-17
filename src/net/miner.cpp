@@ -59,6 +59,12 @@ void run(bool want) {
 
 bool running() { return on; }
 
+// Solo se escribe al cambiar: entrar en el minero o salir de él con SEED
+void remember(bool mining) {
+  if (prefs.getBool("m_on", false) != mining) prefs.putBool("m_on", mining);
+}
+bool wasMining() { return prefs.getBool("m_on", false); }
+
 nerdminer::Stats stats() { return nerdminer::stats(); }
 
 }  // namespace miner

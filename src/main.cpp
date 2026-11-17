@@ -82,6 +82,7 @@ static const char* resetReason() {
     case ESP_RST_TASK_WDT: return "FALLO (watchdog de tareas)";
     case ESP_RST_WDT:      return "FALLO (watchdog)";
     case ESP_RST_BROWNOUT: return "BAJADA DE TENSIÓN";
+    case ESP_RST_DEEPSLEEP: return "despierta (dormía por batería baja)";
     default:               return "otro";
   }
 }
@@ -255,7 +256,7 @@ void setup() {
   backlight::begin();
   lowbattery::checkAtBoot();   // si la batería sigue vacía, a dormir otra vez (no vuelve)
   app::begin();
-  batterylog::begin();   // después de app::begin, que monta LittleFS
+  batterylog::begin(resetReason());   // después de app::begin, que monta LittleFS
   Serial.printf("Open Source Badge v%s (%s) listo. Teclas: p m s (P M S largas), z zap, d demo, n042 numero, X borrar\n",
                 OSB_VERSION, OSB_COMMIT);
   Serial.printf("Último reinicio: %s\n", resetReason());
